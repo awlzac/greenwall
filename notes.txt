@@ -4,3 +4,4 @@ green wall notes
 next up:
  - swcale wall bitmap
  - handle orientatsion; take full screen.  what opts do i set so we don't die?
+ - smooth throw speed - use avg of last few timepoints?

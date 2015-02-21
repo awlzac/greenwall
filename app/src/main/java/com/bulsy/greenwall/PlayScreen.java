@@ -1,6 +1,5 @@
 package com.bulsy.greenwall;
 
-import android.content.Context;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -9,8 +8,10 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.support.v4.view.VelocityTrackerCompat;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
 
 import java.io.IOException;
@@ -30,17 +31,21 @@ import java.util.List;
  * Created by ugliest on 12/29/14.
  */
 public class PlayScreen extends Screen {
-    static final float ZSTRETCH = 300; // lower -> more stretched on z axis
+    static final float ZSTRETCH = 240; // lower -> more stretched on z axis
     static final float WALL_Z = 1000; // where is the wall, on the z axis?
-    static final float WALL_Y_CENTER = 0.25f;  // factor giving y "center" of wall; this is used as infinity on z axis
+    static final float WALL_Y_CENTER_FACTOR = 0.38f;  // factor giving y "center" of wall; this is used as infinity on z axis
+    static final Rect wallbounds_at_z = new Rect();  // wall bounds AT WALL Z (!!WaLLzeY!!)
+    static final Rect wallbounds_at_screen = new Rect();  // wall bounds at screen z
+    static final float WALLZFACT = 1.0f - (ZSTRETCH/(WALL_Z+ZSTRETCH));
     static final long ONESEC_NANOS = 1000000000L;
     static final int TOUCHVLIMIT = 2;
     static final int ACC_GRAVITY = 5000;
     static final int MAX_SELECTABLE_FRUIT = 2;
-    static final int SELECTABLE_SPEED = 10;  // speed of selectable fruit at bottom of screen
+    static final int INIT_SELECTABLE_SPEED = 5;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 10;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     Paint p;
+    Point effpt = new Point(); // reusable point for rendering, to avoid excessive obj creation.  brutally un-threadsafe, obviously, but we will use it in only the render thread.
     List<Fruit> fruitsSelectable = Collections.synchronizedList(new LinkedList<Fruit>()); // fruits ready for user to throw
     List<Fruit> fruitsFlying = Collections.synchronizedList(new LinkedList<Fruit>());  // fruits user has sent flying
     List<Fruit> fruitsSplatted = new LinkedList<Fruit>(); // fruits that have splatted on wall
@@ -51,19 +56,70 @@ public class PlayScreen extends Screen {
     Bitmap wallbtm, pearbtm[], banbtm[], orangebtm[], nutbtm[];
     long touchtime = 0, frtime = 0;
     Rect scaledDst = new Rect();
+    MainActivity act = null;
+    int selectable_speed;
+    boolean showRoundSummary = false;
 
-    // types of throwables, initial quantities, values, etc
-    int npears = 0, noranges = 0, nchoc = 0;
+    int width = 0;
+    int height = 0;
+    int wallxcenter = 0;
+    int wallycenter = 0;
+    int inity = 0;
+    int minXbound = 0;
+    int maxXbound = 0;
+    int maxYbound = 0;
+
+    // types of throwables, remaining quantities, values, etc
+    List<Seed> seedsQueued = new LinkedList<Seed>();
     Seed pearseed;
     Seed orangeseed;
     Seed nutseed;
+    int nWallSplats = 0;
+    int nTotFruit = 0;
 
     int round = 1;
     int score = 0;
 
-    public PlayScreen(Context c) {
+    /**
+     * init game for current round
+     */
+    private void initRound() {
+        selectable_speed = INIT_SELECTABLE_SPEED + (round/2);
+
+        for (Fruit f:fruitsSplatted)
+          fruitsRecycled.add(f);
+        fruitsSplatted.clear();
+
+        // set up fruits to throw
+        seedsQueued.clear();
+        int npears = 5 + round;
+        for (int i = 0; i < npears; i++)
+            seedsQueued.add(pearseed);
+
+        int noranges = 0;
+        if (round > 1)
+            noranges = 4 + round;
+        for (int i = 0; i < noranges; i++) {
+            int loc = 2 + (int) (Math.random() * seedsQueued.size() - 2);
+            seedsQueued.add(loc, orangeseed);
+        }
+
+        int nnuts = 0;
+        if (round > 2)
+            nnuts = round;
+        for (int i = 0; i < nnuts; i++) {
+            int loc = 2 + (int) (Math.random() * seedsQueued.size() - 2);
+            seedsQueued.add(loc, nutseed);
+        }
+
+        nWallSplats = 0;
+        nTotFruit = seedsQueued.size();
+    }
+
+    public PlayScreen(MainActivity act) {
         p = new Paint();
-        AssetManager assetManager = c.getAssets();
+        this.act = act;
+        AssetManager assetManager = act.getAssets();
         try {
             // wall
             InputStream inputStream = assetManager.open("wall1_800x1104_16.png");
@@ -138,11 +194,34 @@ public class PlayScreen extends Screen {
             orangeseed = new Seed(orangebtm, 15);
             nutseed = new Seed(nutbtm, 30);
 
+            // init combos
+            //comboFruitSalad = new Combo({pearseed, orangeseed}, btm, 40);
+
+            p.setTypeface(act.getGameFont());
+            round = 1;
+            initRound();
 
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    /**
+     * return the effective screen x,y point rendered from the inpassed
+     * (x, y, z) point.
+     * @param x
+     * @param y
+     * @param z
+     * @return
+     */
+    private Point renderFromZ(float x, float y, float z, float xc, float yc) {
+        float zfact = 1.0f - (ZSTRETCH/(z+ZSTRETCH));
+        int effx = (int)(x + (zfact * (xc-x)));
+        int effy = (int)(y + (zfact * (yc-y)));
+        effpt.set(effx, effy);
+        return effpt;
+    }
+
 
     /**
      * Draw the inpassed fruit, using the inpassed bitmap, rendering the
@@ -159,118 +238,166 @@ public class PlayScreen extends Screen {
         float zfact = 1.0f - (ZSTRETCH/(f.z+ZSTRETCH));
         int effx = (int)(f.x + (zfact * (xc-f.x)));
         int effy = (int)(f.y + (zfact * (yc-f.y)));
+        //effpt = renderFromZ(f.x, f.y, f.z, xc, yc);
+        //int effx = effpt.x;
+        //int effy = effpt.y;
         int effhalfw = (int)(f.seed.halfWidth * (1.0f - zfact));
         int effhalfh = (int)(f.seed.halfHeight * (1.0f - zfact));
         scaledDst.set(effx - effhalfw, effy - effhalfh, effx + effhalfw, effy + effhalfh);
         c.drawBitmap(btm, null, scaledDst, p);
     }
 
+    @Override
+    public void update(View v) {
+        if (showRoundSummary)
+            return;  // nothing to update
+
+        if (width == 0) {
+            // set variables that rely on screen size
+            width = v.getWidth();
+            height = v.getHeight();
+            wallxcenter = width / 2;
+            wallycenter = (int) (height * WALL_Y_CENTER_FACTOR);
+
+            inity = (int) (INIT_SELECTABLE_Y_FACTOR * height); // initial fruit placement, also bottom of wall.
+            minXbound = 8 * -width;
+            maxXbound = 8 * width;
+            maxYbound = 5 * height;
+
+            // attempt to compute wall bounds from screen size
+            wallbounds_at_z.set((int)(-1.5*width), (int)(-height*.9), (int)(2.43*width), inity);  // wall bounds AT WALL Z (!!WaLLzeY!!)
+
+            // compute wall bounds at screen, used for clipping.
+            int effl = (int) (wallbounds_at_z.left + (WALLZFACT * (wallxcenter - wallbounds_at_z.left)));
+            int efft = (int) (wallbounds_at_z.top + (WALLZFACT * (wallycenter - wallbounds_at_z.top)));
+            int effr = (int) (wallbounds_at_z.right + (WALLZFACT * (wallxcenter - wallbounds_at_z.right)));
+            int effb = (int) (wallbounds_at_z.bottom + (WALLZFACT * (wallycenter - wallbounds_at_z.bottom)));
+            wallbounds_at_screen.set(effl, efft, effr, effb);
+        }
+
+        long newtime = System.nanoTime();
+        float elapsedsecs = (float)(newtime - frtime) / ONESEC_NANOS;
+        frtime = newtime;
+
+        if (fruitsSelectable.size() < MAX_SELECTABLE_FRUIT
+                && seedsQueued.size() > 0
+                && Math.random() > .9) { // make a fruit available
+            Fruit newf = null;
+            if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
+                newf = fruitsRecycled.get(0);
+                fruitsRecycled.remove(0);
+            }
+            else { // create if needed
+                newf = new Fruit();
+            }
+            int initx = 0;
+            int speed = selectable_speed;
+            if (Math.random() > .5) {
+                initx = width;
+                speed = -speed;
+            }
+
+            // choose fruit
+            Seed s = seedsQueued.get(0);
+            seedsQueued.remove(0);
+            newf.init(s, initx, inity, 0, speed);
+            fruitsSelectable.add(newf);
+        }
+        else if (fruitsSelectable.size() == 0
+                && fruitsFlying.size() == 0
+                && seedsQueued.size() == 0) {
+            showRoundSummary = true;
+            if (nWallSplats*100/nTotFruit >= 50)
+                round++;
+        }
+
+        // update fruit positions
+        synchronized (fruitsFlying) {
+            Iterator<Fruit> fit = fruitsFlying.iterator();
+            while (fit.hasNext()) {
+                Fruit f = fit.next();
+                f.x += f.vx * elapsedsecs;
+                f.y += f.vy * elapsedsecs;
+                f.z += f.vz * elapsedsecs;
+                f.vy += ACC_GRAVITY * elapsedsecs;
+                if (f.z >= WALL_Z && wallbounds_at_z.contains((int)f.x, (int)f.y)) {
+                    // fruit has hit wall
+                    fit.remove();
+                    fruitsSplatted.add(f);
+                    nWallSplats++;
+                    score += f.seed.points;
+                    //act.getSound
+
+                    // check combo
+                    // if combo -> more points and celebration graphic/sound
+                }
+                else if (f.y > inity
+                        && f.y < inity + f.vy * elapsedsecs
+                        && f.z > WALL_Z/2) {
+                    // fruit has hit ground near wall
+                    fit.remove();
+                    fruitsSplatted.add(f);
+                }
+                // here we goofily force java to call the function when we need it
+                else if (f.z > WALL_Z
+                        && (effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter))!=null
+                        && wallbounds_at_screen.contains(effpt.x, effpt.y)
+                        ) {
+                    // wild pitch, behind wall
+                    fit.remove();
+                    fruitsRecycled.add(f);
+                }
+                else if (f.y > maxYbound
+                        || f.x >= maxXbound
+                        || f.x <= minXbound) {
+                    // wild pitch, out of bounds
+                    fit.remove();
+                    fruitsRecycled.add(f);
+                }
+            }
+        }
+        synchronized (fruitsSelectable) {
+            Iterator<Fruit> fit = fruitsSelectable.iterator();
+            while (fit.hasNext()) {
+                Fruit f = fit.next();
+                if (f != selectedFruit) {
+                    f.x += f.vx;
+                    f.y += SELECTABLE_Y_PLAY;
+                    f.y += (inity - f.y) / 3;
+                }
+                if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
+                    // we floated off screen
+                    fit.remove();
+                    fruitsRecycled.add(f);
+                }
+            }
+        }
+
+    }
+
     /**
-     * draw the screen.  we also update state here, before drawing.  this is technically
-     * gluttonous of us, because we're using locked canvas time.
+     * draw the screen.
      * @param c
      * @param v
      */
     @Override
     public void draw(Canvas c, View v) {
         try {
-            int width = v.getWidth();
-            int height = v.getHeight();
-            int inity = (int)(INIT_SELECTABLE_Y_FACTOR * height);
-            int wallxcenter = width / 2;
-            int wallycenter = (int)(height * WALL_Y_CENTER);
-            final int minXbound = -width;
-            final int maxXbound = 2*width;
-            final int maxYbound = 2*height;
-
-            if (fruitsSelectable.size() < MAX_SELECTABLE_FRUIT && Math.random() > .9) { // make a fruit available
-                Fruit newf = null;
-                if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
-                    newf = fruitsRecycled.get(0);
-                    fruitsRecycled.remove(0);
-                }
-                else { // create if needed
-                    newf = new Fruit();
-                }
-                int initx = 0;
-                int speed = SELECTABLE_SPEED;
-                if (Math.random() > .5) {
-                    initx = width;
-                    speed = -speed;
-                }
-
-                // choose fruit
-                Seed s;
-                double fruitchoice = Math.random();
-                if (fruitchoice < .5)
-                    s = pearseed;
-                else if (fruitchoice < .9)
-                    s = orangeseed;
-                else
-                    s = nutseed;
-                newf.init(s, initx, inity, 0, speed);
-                fruitsSelectable.add(newf);
-            }
-            else if (fruitsSelectable.size() == 0) {
-                // round over?
-            }
-
-            long newtime = System.nanoTime();
-            float elapsedsecs = (float)(newtime - frtime) / ONESEC_NANOS;
-            frtime = newtime;
-
-            // update fruit positions
-            synchronized (fruitsFlying) {
-                Iterator<Fruit> fit = fruitsFlying.iterator();
-                while (fit.hasNext()) {
-                    Fruit f = fit.next();
-                    f.x += f.vx * elapsedsecs;
-                    f.y += f.vy * elapsedsecs;
-                    f.z += f.vz * elapsedsecs;
-                    f.vy += ACC_GRAVITY * elapsedsecs;
-                    if (f.z >= WALL_Z) { // fruit has hit wall
-                        fit.remove();
-                        fruitsSplatted.add(f);
-                        score += f.seed.points;
-                        // if combo -> more points and celebration graphic/sound
-                    }
-                    if (f.y > inity && f.z > WALL_Z/2) { // fruit has hit ground near wall
-                        fit.remove();
-                        fruitsSplatted.add(f);
-                    }
-                    if (f.y > maxYbound || f.x >= maxXbound || f.x <= minXbound) { //wild pitch
-                        fit.remove();
-                        fruitsRecycled.add(f);
-                    }
-
-                }
-            }
-            synchronized (fruitsSelectable) {
-                Iterator<Fruit> fit = fruitsSelectable.iterator();
-                while (fit.hasNext()) {
-                    Fruit f = fit.next();
-                    if (f != selectedFruit) {
-                        f.x += f.vx;
-                        f.y += SELECTABLE_Y_PLAY;
-                        f.y += (inity - f.y) / 3;
-                    }
-                    if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
-                        // we floated off screen
-                        fit.remove();
-                        fruitsRecycled.add(f);
-                    }
-                }
-            }
-
             // actually draw the screen
             scaledDst.set(0, 0, width, height);
             c.drawBitmap(wallbtm, null, scaledDst, p);
+
+            // draw wall's bounds, for debugging
+            //p.setColor(Color.RED);
+            //c.drawRect(wallbounds_at_screen, p);
+
+            // draw fruits
             for (Fruit f : fruitsSplatted){
                 drawFruit3Dcoords(c, f, f.getSplatBitmap(), wallxcenter, wallycenter);
             }
             synchronized (fruitsFlying) {
                 for (Fruit f : fruitsFlying) {
-                    drawFruit3Dcoords(c, f, f.getBitmap(newtime), wallxcenter, wallycenter);
+                    drawFruit3Dcoords(c, f, f.getBitmap(System.nanoTime()), wallxcenter, wallycenter);
                 }
             }
             synchronized (fruitsSelectable) {
@@ -279,27 +406,62 @@ public class PlayScreen extends Screen {
                     c.drawBitmap(f.seed.btm[0], f.x - f.seed.halfWidth, f.y - f.seed.halfHeight, p);
                 }
             }
-            p.setTextSize(40);
-//            c.drawText("tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+ "\tflying:"+fruitsFlying.size()
-//                            +" ffz:"+(fruitsFlying.size()>0?fruitsFlying.get(0).z:-1)
-//                    +" ffvz:"+(fruitsFlying.size()>0?fruitsFlying.get(0).vz:-1),
+//            c.drawText(
+//                        "x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
+//                    "\tflying:" + fruitsFlying.size()
+//                            + " ffz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).z : -1)
+//                            + " ffvz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1),
 //                    0, 100, p);
             p.setColor(Color.WHITE);
-            c.drawText("ROUND "+round, 0, 50, p);
-            c.drawText("SCORE: "+score, width - 200, 50, p);
+            p.setTextSize(45);
+            p.setTypeface(act.getGameFont());
+            p.setFakeBoldText(true);
+            c.drawText("ROUND "+round, width - 300, 60, p);
+            c.drawText("SCORE: "+score, 10, 60, p);
+
+            if (showRoundSummary) {
+                // round ended, display stats
+                int splatPct = (int)(nWallSplats*100/nTotFruit);
+
+                c.drawText(splatPct+"% sPLAttaGe!", width/4, height/3, p);
+                if (splatPct < 50)
+                    c.drawText("Ooops...", width/4, (int)(height/2.5), p);
+                else if (splatPct < 60)
+                    c.drawText("Not too bad.", width/4, (int)(height/2.5), p);
+                else if (splatPct < 70)
+                    c.drawText("Nice!", width*3/4, (int)(height/2.5), p);
+                else if (splatPct < 80) {
+                    c.drawText("sPAzTIc!", width / 3, (int) (height / 2.5), p);
+                    c.drawText("CruDe!!", width / 2, (int) (height / 2.2), p);
+                }
+                else if (round > 5) {
+                    c.drawText("Dude, really?!", width / 4, (int) (height / 2.5), p);
+                    c.drawText("That was awesome.", width / 3, (int) (height / 2.2), p);
+                }
+                else {
+                    c.drawText("eEEeEeeEh!! sPAzTIc!", width / 4, (int) (height / 2.5), p);
+                }
+                c.drawText("Touch to continue", width/4, height*2/3, p);
+            }
+
         } catch (Exception e) {
             Log.e("GW", "exception", e);
             e.printStackTrace();
         }
     }
 
+    VelocityTracker mVelocityTracker = null;
     @Override
-    public boolean onTouch(MotionEvent e, MainActivity act) {
+    public boolean onTouch(MotionEvent e) {
         long newtime = System.nanoTime();
         float elapsedsecs = (float)(newtime - touchtime) / ONESEC_NANOS;
         touchtime = newtime;
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                if (showRoundSummary) {
+                    showRoundSummary = false; // tapping screen lets us continue game
+                    initRound();
+                }
                 touchx = e.getX();
                 touchy = e.getY();
                 synchronized (fruitsSelectable) {
@@ -308,36 +470,63 @@ public class PlayScreen extends Screen {
                             selectedFruit = f;
                     }
                 }
+                if(mVelocityTracker == null) {
+                    // Retrieve a new VelocityTracker object to watch the velocity of a motion.
+                    mVelocityTracker = VelocityTracker.obtain();
+                }
+                else {
+                    // Reset the velocity tracker back to its initial state.
+                    mVelocityTracker.clear();
+                }
+                // Add a user's movement to the tracker.
+                mVelocityTracker.addMovement(e);
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                float newx = e.getX();
-                float newy = e.getY();
-                touchvx = (newx - touchx)/elapsedsecs;
-                touchvy = (newy - touchy)/elapsedsecs;
-                touchx = newx;
-                touchy = newy;
+                touchx = e.getX();
+                touchy = e.getY();
                 if (selectedFruit != null) {
                     selectedFruit.x = touchx;
                     selectedFruit.y = touchy;
                 }
+                mVelocityTracker.addMovement(e);
+                // When you want to determine the velocity, call
+                // computeCurrentVelocity(). Then call getXVelocity()
+                // and getYVelocity() to retrieve the velocity for each pointer ID.
+                mVelocityTracker.computeCurrentVelocity(1000);
+                int pointerId = e.getPointerId(e.getActionIndex());
+                // Log velocity of pixels per second
+                // Best practice to use VelocityTrackerCompat where possible.
+//                Log.d("Greenie", "X velocity: me:" + touchvx+" VT:"+
+//                        VelocityTrackerCompat.getXVelocity(mVelocityTracker,
+//                                pointerId));
+//                Log.d("Greenie", "Y velocity: me:" + touchvy+" VT:"+
+//                        VelocityTrackerCompat.getYVelocity(mVelocityTracker,
+//                                pointerId));
+                touchvx = VelocityTrackerCompat.getXVelocity(mVelocityTracker,
+                        pointerId);
+                touchvy = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
+                        pointerId);
                 break;
 
             case MotionEvent.ACTION_UP:
-                if (selectedFruit != null) {
-                    Fruit f = selectedFruit;
-                    selectedFruit = null;
-                    if (Math.abs(touchvx) - touchvy > TOUCHVLIMIT) {
-                        // user threw fruit
-                        f.throwFruit(touchvx, touchvy);
-                        fruitsSelectable.remove(f);
-                        fruitsFlying.add(f);
-                    }
-                }
+                float tvx = touchvx;
+                float tvy = touchvy;
                 touchx = -1;
                 touchy = -1;
                 touchvx = 0;
                 touchvy = 0;
+                if (selectedFruit != null) {
+                    Fruit f = selectedFruit;
+                    selectedFruit = null;
+                    if (-tvy > 0) {
+                        // there is upward motion at release-- user threw fruit
+                        f.throwFruit(tvx, tvy);
+                        fruitsSelectable.remove(f);
+                        fruitsFlying.add(f);
+                    }
+                }
+                mVelocityTracker.recycle();
                 break;
         }
 
@@ -420,12 +609,19 @@ public class PlayScreen extends Screen {
         }
 
         public void throwFruit(float tvx, float tvy) {
-            thrownTime = System.nanoTime();
+            thrownTime = System.nanoTime(); // used by animation
             vx = tvx;
-            vy = tvy/3;
-            if (tvy < -5000)
-                vy = (float)(Math.log(tvy) + (-5000 - Math.log(tvy)));
-            vz = -tvy+Math.abs(tvx)/10;
+
+            // y vel is faster as we release higher on screen, and z vel
+            // is faster if we release lower. so this factor represents
+            // how much of the user's actual touchpoint y-velocity is treated as z-velocity.
+            float yzfact = y / inity;
+            vy = tvy * (1 - yzfact);
+            vz = (-tvy * yzfact)/2;
+//            if (tvy < -5000)
+//                vy = (float)(Math.log(tvy) + (-5000 - Math.log(tvy)));
+//            vy += (inity - y);
+//            vz = -tvy+Math.abs(tvx)/10;
         }
 
         public Bitmap getBitmap(long t) {

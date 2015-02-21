@@ -2,8 +2,10 @@ package com.bulsy.greenwall;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Typeface;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -12,13 +14,12 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
 
-import android.opengl.GLSurfaceView;
-
 public class MainActivity extends ActionBarActivity {
     Screen entryScreen;
-    Screen smearScreen;
+    Screen playScreen;
     Screen currentScreen;
     FullScreenView mainView;
+    Typeface gamefont;
 
     /**
      * Initialize the activity.
@@ -34,12 +35,15 @@ public class MainActivity extends ActionBarActivity {
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         // create screens
-        entryScreen = new EntryScreen();
-        smearScreen = new PlayScreen(this);
+        entryScreen = new EntryScreen(this);
+        playScreen = new PlayScreen(this);
 
         mainView = new FullScreenView(this);
         //mainView.setRenderer(new SimpleRenderer());
         setContentView(mainView);
+
+//        gamefont = Typeface.createFromAsset(getAssets(), "smartiecaps.ttf");
+        gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
     }
 
     /**
@@ -82,21 +86,32 @@ public class MainActivity extends ActionBarActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    public Typeface getGameFont() {
+        return gamefont;
+    }
+
     // screen transitions
 
     /**
      * Start a new game.
      */
     public void startGame() {
-        currentScreen = this.smearScreen;
-
+        currentScreen = this.playScreen;
     }
 
     /**
      * Leave game and return to title screen.
      */
-    public void exitGame() {
+    public void leaveGame() {
         currentScreen = this.entryScreen;
+    }
+
+    /**
+     * completely exit the game.
+     */
+    public void exit() {
+        finish();
+        System.exit(0);
     }
 
     /**
@@ -123,16 +138,26 @@ public class MainActivity extends ActionBarActivity {
 
         @Override
         public void run() {
-            while(isRendering){
-                if(!holder.getSurface().isValid()) {
-                    try {
-                        Thread.sleep(10);
-                    } catch (Exception e) { /* we don't care */  }
-                    continue;
+
+            try {
+                while(isRendering){
+                    while(!holder.getSurface().isValid()) {
+                        try {
+                            Thread.sleep(5);
+                        } catch (Exception e) { /* we don't care */  }
+                    }
+
+                    // update screen's context
+                    currentScreen.update(this);
+
+                    // draw screen
+                    Canvas c = holder.lockCanvas();
+                    currentScreen.draw(c, this);
+                    holder.unlockCanvasAndPost(c);
                 }
-                Canvas c = holder.lockCanvas();
-                currentScreen.draw(c, this);
-                holder.unlockCanvasAndPost(c);
+            } catch (Exception e) {
+                Log.getStackTraceString(e);
+                e.printStackTrace();
             }
 
         }
@@ -150,7 +175,13 @@ public class MainActivity extends ActionBarActivity {
         }
 
         public boolean onTouch(View v, MotionEvent event) {
-            return currentScreen.onTouch(event, MainActivity.this);
+            try {
+                return currentScreen.onTouch(event);
+            }
+            catch (Exception e) {
+                Log.d("Greenie", "WTF?", e);
+            }
+            return false;
         }
     }
 }
