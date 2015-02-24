@@ -2,6 +2,15 @@ green wall notes
 ----------------
 
 next up:
- - swcale wall bitmap
  - handle orientatsion; take full screen.  what opts do i set so we don't die?
- - smooth throw speed - use avg of last few timepoints?
+ - add sound
+ - add ketchups
+
+log---
+------
+
+feb 24 - got basic combos working.  would like to change color and add more combos.
+
+handled:
+scale wall bitmap
+smooth throw speed - use avg of last few timepoints? -- used velocitytracker.

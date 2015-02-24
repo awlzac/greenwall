@@ -16,10 +16,13 @@ import android.view.View;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents the main screen of play for the game.
@@ -41,7 +44,7 @@ public class PlayScreen extends Screen {
     static final int TOUCHVLIMIT = 2;
     static final int ACC_GRAVITY = 5000;
     static final int MAX_SELECTABLE_FRUIT = 2;
-    static final int INIT_SELECTABLE_SPEED = 5;  // speed of selectable fruit at bottom of screen
+    static final int INIT_SELECTABLE_SPEED = 3;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 10;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     Paint p;
@@ -79,6 +82,10 @@ public class PlayScreen extends Screen {
 
     int round = 1;
     int score = 0;
+
+    List<Combo> combos = new ArrayList<Combo>();  // possible combos
+    List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
+    Map<Combo, ComboHit> hitCombos = new HashMap<Combo, ComboHit>(); // combos tht have just been hit, and are being displayed to player
 
     /**
      * init game for current round
@@ -195,7 +202,10 @@ public class PlayScreen extends Screen {
             nutseed = new Seed(nutbtm, 30);
 
             // init combos
-            //comboFruitSalad = new Combo({pearseed, orangeseed}, btm, 40);
+            ArrayList<Seed> sl = new ArrayList<Seed>();
+            sl.add(pearseed);
+            sl.add(orangeseed);
+            combos.add(new Combo(sl, "Fruit Salad!", 40));
 
             p.setTypeface(act.getGameFont());
             round = 1;
@@ -204,6 +214,36 @@ public class PlayScreen extends Screen {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Represents a combination of splats
+     */
+    private class Combo {
+        ArrayList<Seed> seeds;
+        String name;
+        int points;
+
+        public Combo (ArrayList<Seed> seeds, String name, int points) {
+            this.seeds = seeds;
+            this.name = name;
+            this.points = points;
+        }
+
+        /**
+         * Check if the inpassed fruit is splatted overlapping with ????
+         * @param f
+         * @return
+         */
+        public boolean check(Fruit f) {
+            return false;
+        }
+    }
+
+    private class ComboHit {
+        float x=0;
+        float y=0;
+        long hitTime = 0;
     }
 
     /**
@@ -326,10 +366,43 @@ public class PlayScreen extends Screen {
                     fruitsSplatted.add(f);
                     nWallSplats++;
                     score += f.seed.points;
-                    //act.getSound
+                    //act.getSound splat
 
                     // check combo
-                    // if combo -> more points and celebration graphic/sound
+                    synchronized (fruitsSplatted) {
+                        for (Combo c : combos) {
+                            List<Seed> neededSeeds = (List<Seed>)c.seeds.clone();
+                            neededSeeds.remove(f.seed);
+                            comboFruits.clear();
+                            comboFruits.add(f);
+                            for (Fruit spf : fruitsSplatted) {
+                                if (neededSeeds.contains(spf.seed)) {
+                                    if (spf.getBounds().intersect(f.getBounds())) {
+                                        neededSeeds.remove(spf.seed);
+                                        comboFruits.add(spf);
+                                    }
+                                    if (neededSeeds.size() == 0)
+                                        break;
+                                }
+                            }
+                            if (neededSeeds.size() == 0) {
+                                // combo is hit
+                                score += c.points;
+                                for (Fruit spf : comboFruits) {
+                                    fruitsSplatted.remove(spf);
+                                }
+
+                                // combo sound play
+                                effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter);
+                                ComboHit ch = new ComboHit();
+                                ch.x = effpt.x + (float)Math.random() * 100 -50;
+                                ch.y = effpt.y + (float)Math.random() * 100 -80;
+                                ch.hitTime = System.nanoTime();
+                                hitCombos.put(c, ch);
+                            }
+                        }
+                    }
+
                 }
                 else if (f.y > inity
                         && f.y < inity + f.vy * elapsedsecs
@@ -373,6 +446,15 @@ public class PlayScreen extends Screen {
             }
         }
 
+        // update combo hits
+        Iterator<Combo> hcit = hitCombos.keySet().iterator();
+        while (hcit.hasNext()) {
+            Combo combo = hcit.next();
+            ComboHit ch = hitCombos.get(combo);
+            ch.y -= 200 * elapsedsecs;
+            if (System.nanoTime() - ch.hitTime > ONESEC_NANOS)
+                hitCombos.remove(combo);
+        }
     }
 
     /**
@@ -406,6 +488,16 @@ public class PlayScreen extends Screen {
                     c.drawBitmap(f.seed.btm[0], f.x - f.seed.halfWidth, f.y - f.seed.halfHeight, p);
                 }
             }
+
+            // draw combo hits
+            for (Combo combo : hitCombos.keySet()) {
+                ComboHit ch = hitCombos.get(combo);
+                p.setColor(Color.YELLOW);
+                p.setTypeface(act.getGameFont());
+                p.setTextSize(45);
+                c.drawText(combo.name, ch.x, ch.y, p);
+            }
+
 //            c.drawText(
 //                        "x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
 //                    "\tflying:" + fruitsFlying.size()
@@ -603,9 +695,13 @@ public class PlayScreen extends Screen {
          * @param colly
          */
         public boolean hasCollision(float collx, float colly) {
+            return getBounds().contains((int) collx, (int) colly);
+        }
+
+        public Rect getBounds() {
             bounds.set((int)(this.x - seed.halfWidth), (int)(this.y-seed.halfHeight),
                     (int)(this.x+seed.halfWidth), (int)(this.y+seed.halfHeight));
-            return bounds.contains((int)collx, (int)colly);
+            return bounds;
         }
 
         public void throwFruit(float tvx, float tvy) {
