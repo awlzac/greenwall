@@ -65,7 +65,6 @@ public class PlayScreen extends Screen {
     private volatile Fruit selectedFruit = null;
     private int maxShownSelectableFruit;
     private float touchvx, touchvy;  // touchpoint's velocity
-    private Bitmap wallbtm, pearbtm[], banbtm[], orangebtm[], nutbtm[];
     private long touchtime = 0, frtime = 0;
     private Rect scaledDst = new Rect();
     private MainActivity act = null;
@@ -76,6 +75,7 @@ public class PlayScreen extends Screen {
     private final int GS_STARTGAME = 4; // transition state into game
     private final int GS_GAMEOVER = 5; // player lost
     private volatile int gamestate = GS_STARTGAME;
+    private int fps=0; // rendering rate, frames per sec
 
     private int width = 0;
     private int height = 0;
@@ -88,9 +88,14 @@ public class PlayScreen extends Screen {
 
     // types of throwables, remaining quantities, values, etc
     private List<Seed> seedsQueued = new LinkedList<Seed>();
+    private Bitmap wallbtm, pearbtm[], banbtm[], orangebtm[], milkbtm[], icbtm[], ketbtm[], nutbtm[];
     private Seed pearseed;
     private Seed orangeseed;
+    private Seed banseed;
+    private Seed milkseed;
+    private Seed icseed;
     private Seed nutseed;
+    private Seed ketseed;
     private int nWallSplats = 0;
     private int nTotFruit = 0;
 
@@ -181,16 +186,75 @@ public class PlayScreen extends Screen {
             nutbtm[4] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
 
+            // ice cream
+            icbtm = new Bitmap[5];
+            inputStream = assetManager.open("icecream1.png");
+            icbtm[0] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("icecream2.png");
+            icbtm[1] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("icecream3.png");
+            icbtm[2] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("icecream4.png");
+            icbtm[3] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("icecreamsplat.png");
+            icbtm[4] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+
+            // milk
+            milkbtm = new Bitmap[5];
+            inputStream = assetManager.open("milk1.png");
+            milkbtm[0] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("milk2.png");
+            milkbtm[1] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("milk3.png");
+            milkbtm[2] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("milk4.png");
+            milkbtm[3] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("milksplat.png");
+            milkbtm[4] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+
+            // ketchup
+            ketbtm = new Bitmap[2];
+            inputStream = assetManager.open("ketch1.png");
+            ketbtm[0] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("ketchsplat.png");
+            ketbtm[1] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+
             // initialize types of fruit (seeds), point values
             pearseed = new Seed(pearbtm, 10);
             orangeseed = new Seed(orangebtm, 15);
-            nutseed = new Seed(nutbtm, 30);
+            banseed = new Seed(banbtm, 20);
+            milkseed = new Seed(milkbtm, 25);
+            icseed = new Seed(icbtm, 30);
+            nutseed = new Seed(nutbtm, 40);
+            ketseed = new Seed(ketbtm, 0);
 
             // init combos
             ArrayList<Seed> sl = new ArrayList<Seed>();
             sl.add(pearseed);
             sl.add(orangeseed);
-            combos.add(new Combo(sl, "Fruit Salad!", 40));
+            sl.add(banseed);
+            combos.add(new Combo(sl, "Fruit Salad!", 80));
+            sl = new ArrayList<Seed>();
+            sl.add(milkseed);
+            sl.add(nutseed);
+            combos.add(new Combo(sl, "chOcolaTe MiLK!", 80));
+            sl = new ArrayList<Seed>();
+            sl.add(banseed);
+            sl.add(icseed);
+            sl.add(nutseed);
+            combos.add(new Combo(sl, "bAnaNA sPLiT!!", 100));
 
             p.setTypeface(act.getGameFont());
             round = 1;
@@ -220,6 +284,19 @@ public class PlayScreen extends Screen {
     }
 
     /**
+     * add the specified number of the specified fruit seed to the specified list.
+     * seeds are added at random locations in the list.
+     * @param list
+     * @param n
+     */
+    private void addFruitSeed(List<Seed> list, Seed s, int n) {
+        for (int i = 0; i < n; i++) {
+            int loc = (int) (Math.random() * list.size());
+            list.add(loc, s);
+        }
+    }
+
+    /**
      * init game for current round
      */
     private void initRound() {
@@ -241,25 +318,20 @@ public class PlayScreen extends Screen {
 
         // set up fruits to throw
         seedsQueued.clear();
-        int npears = 5 + round/2;
-        for (int i = 0; i < npears; i++)
-            seedsQueued.add(pearseed);
-
-        int noranges = 0;
+        addFruitSeed(seedsQueued, pearseed, 5+round/2);
         if (round > 1)
-            noranges = 4 + round/2;
-        for (int i = 0; i < noranges; i++) {
-            int loc = 2 + (int) (Math.random() * seedsQueued.size() - 2);
-            seedsQueued.add(loc, orangeseed);
-        }
-
-        int nnuts = 0;
+            addFruitSeed(seedsQueued, orangeseed, 4+round/2);
         if (round > 2)
-            nnuts = round/2;
-        for (int i = 0; i < nnuts; i++) {
-            int loc = 2 + (int) (Math.random() * seedsQueued.size() - 2);
-            seedsQueued.add(loc, nutseed);
-        }
+            addFruitSeed(seedsQueued, banseed, round/2);
+        if (round > 4)
+            addFruitSeed(seedsQueued, milkseed, 1+round/3);
+        if (round > 7)
+            addFruitSeed(seedsQueued, icseed, round/3);
+        if (round > 9)
+            addFruitSeed(seedsQueued, nutseed, round/3);
+
+        if (round > 5)
+            addFruitSeed(seedsQueued, ketseed, round/2);
 
         nWallSplats = 0;
         nTotFruit = seedsQueued.size();
@@ -351,6 +423,7 @@ public class PlayScreen extends Screen {
         long newtime = System.nanoTime();
         float elapsedsecs = (float)(newtime - frtime) / ONESEC_NANOS;
         frtime = newtime;
+        fps = (int)(1/elapsedsecs);
 
         // update combo hits
         Iterator<Combo> hcit = hitCombos.keySet().iterator();
@@ -361,7 +434,7 @@ public class PlayScreen extends Screen {
             float chtime = frtime - ch.hitTime;
             ch.alpha = (int)(255 * (1.0f - chtime/COMBOHIT_DISPLAYTIME));
             if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME)
-                hitCombos.remove(combo);
+                hcit.remove();
         }
 
         if (gamestate == GS_STARTGAME) {
@@ -590,12 +663,12 @@ public class PlayScreen extends Screen {
                 c.drawText(combo.name, ch.x, ch.y, p);
             }
 
-//            c.drawText(
-//                        "x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
+//            c.drawText("fps: "+fps
+//                        +"x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
 //                    "\tflying:" + fruitsFlying.size()
 //                            + " ffz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).z : -1)
 //                            + " ffvz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1),
-//                    0, 100, p);
+//                    , 0, 200, p);
             p.setColor(Color.WHITE);
             p.setTextSize(45);
             p.setTypeface(act.getGameFont());
@@ -754,7 +827,7 @@ public class PlayScreen extends Screen {
      * A fruit is something that the player is presented with, usually to throw at the wall.
      */
     private class Fruit {
-        final int APS = 3; // number of animation cycles per second
+        final int APS = 4; // number of animation cycles per second
 
         // position
         int initx=0;

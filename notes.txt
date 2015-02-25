@@ -3,15 +3,16 @@ green wall notes
 
 next up:
  - add sound
- - add milk, ice cream, banana, ketchups
- - more combos
+ - add proper banana
+ - more combos - have 3 of 2 and 3 of 3
  - change combo text to btm, with text and image, alpha bg
  - starter icon
  - add splat to title screen
- - add spaz to combo
-  min number of combos per round
-  targets
-  catch exit and go bac to title screen.  are you sure?
+ - add spaz to combo?  spaz is 3x multiplier to combo and makes combo spaz harder?
+  min number of combos per round -> per 10 levs, combo reqt.  after lev 20, reqt is in a scrqqn quadrant
+  targets?
+  catch phone exit and go bac to title screen.  are you sure?
+  make ketchups bad haha
 
 
 
@@ -20,6 +21,8 @@ log---
 feb 25
 handled orientatsion; take full screen.  what opts do i set so we don't die?
 cleaned a little combo text display
+high scores
+added milk, ice cream and ketchup, though ketchup acts like normal fruit so far.
 
 feb 24 - got basic combos working.  would like to change color and add more combos.
 
