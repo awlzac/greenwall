@@ -2,12 +2,20 @@ green wall notes
 ----------------
 
 next up:
- - handle orientatsion; take full screen.  what opts do i set so we don't die?
  - add sound
- - add ketchups
+ - add milk, ice cream, banana, ketchups
+ - combos, and keep combo text on screen
+ - add lives
+ - change combo text to btm, with text and image, alpha bg
+ - starter icon
+ - add splat to title screen
+
 
 log---
 ------
+feb 25
+handled orientatsion; take full screen.  what opts do i set so we don't die?
+cleaned a little combo text display
 
 feb 24 - got basic combos working.  would like to change color and add more combos.
 

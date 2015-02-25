@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -39,7 +40,8 @@ public class EntryScreen extends Screen {
             inputStream.close();
         }
         catch (Exception e) {
-            // really tho, what to do with exceptions on android?
+            // what to do with an exception here on android?
+            Log.d(MainActivity.LOG_ID, "onTouch", e);
         }
     }
 
@@ -79,7 +81,8 @@ public class EntryScreen extends Screen {
         if (exitBtnBounds.contains((int)e.getX(), (int)e.getY()))
             act.exit();
 
-        return true;
+        // we don't care about followup events in this screen
+        return false;
     }
 
 

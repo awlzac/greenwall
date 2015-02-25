@@ -12,14 +12,17 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 
 public class MainActivity extends ActionBarActivity {
+    static final String LOG_ID = "Greenie";
     Screen entryScreen;
     Screen playScreen;
     Screen currentScreen;
     FullScreenView mainView;
     Typeface gamefont;
+
 
     /**
      * Initialize the activity.
@@ -27,23 +30,28 @@ public class MainActivity extends ActionBarActivity {
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        //setContentView(R.layout.activity_main);
+        try {
+            requestWindowFeature(Window.FEATURE_NO_TITLE);
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
-        //requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            super.onCreate(savedInstanceState);
 
-        // create screens
-        entryScreen = new EntryScreen(this);
-        playScreen = new PlayScreen(this);
+            // create screens
+            entryScreen = new EntryScreen(this);
+            playScreen = new PlayScreen(this);
 
-        mainView = new FullScreenView(this);
-        //mainView.setRenderer(new SimpleRenderer());
-        setContentView(mainView);
+            mainView = new FullScreenView(this);
+            //mainView.setRenderer(new SimpleRenderer());
+            setContentView(mainView);
 
 //        gamefont = Typeface.createFromAsset(getAssets(), "smartiecaps.ttf");
-        gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
+            gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
+        } catch (Exception e) {
+            // panic, crash, fine -- but let me know what happened.
+            Log.d(LOG_ID, "onCreate", e);
+            throw e;
+        }
     }
 
     /**
@@ -156,7 +164,8 @@ public class MainActivity extends ActionBarActivity {
                     holder.unlockCanvasAndPost(c);
                 }
             } catch (Exception e) {
-                Log.getStackTraceString(e);
+                // arguably overzealous to grab all exceptions here...but i want to know.
+                Log.d(LOG_ID, "View", e);
                 e.printStackTrace();
             }
 
@@ -179,7 +188,8 @@ public class MainActivity extends ActionBarActivity {
                 return currentScreen.onTouch(event);
             }
             catch (Exception e) {
-                Log.d("Greenie", "WTF?", e);
+                // arguably overzealous to grab all exceptions here...but i want to know.
+                Log.d(LOG_ID, "onTouch", e);
             }
             return false;
         }
