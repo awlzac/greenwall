@@ -14,6 +14,12 @@ import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -46,55 +52,61 @@ public class PlayScreen extends Screen {
     static final float WALLZFACT = 1.0f - (ZSTRETCH/(WALL_Z+ZSTRETCH));
     static final long ONESEC_NANOS = 1000000000L;
     static final int ACC_GRAVITY = 5000;
-    static final int MAX_SHOWN_SELECTABLE_FRUIT = 2;
     static final int INIT_SELECTABLE_SPEED = 150;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     static final int MIN_ROUND_PASS_PCT = 50;  // pct splatted on wall that we require to advance level
-    Paint p;
-    Point effpt = new Point(); // reusable point for rendering, to avoid excessive obj creation.  brutally un-threadsafe, obviously, but we will use it in only the render thread.
-    List<Fruit> fruitsSelectable = Collections.synchronizedList(new LinkedList<Fruit>()); // fruits ready for user to throw
-    List<Fruit> fruitsFlying = Collections.synchronizedList(new LinkedList<Fruit>());  // fruits user has sent flying
-    List<Fruit> fruitsSplatted = new LinkedList<Fruit>(); // fruits that have splatted on wall
-    List<Fruit> fruitsRecycled = new LinkedList<Fruit>(); // fruit objects no longer in use
-    volatile Fruit selectedFruit = null;
-    float touchvx, touchvy;  // touchpoint's velocity
-    Bitmap wallbtm, pearbtm[], banbtm[], orangebtm[], nutbtm[];
-    long touchtime = 0, frtime = 0;
-    Rect scaledDst = new Rect();
-    MainActivity act = null;
-    int selectable_speed;
-    final int GS_RUNNING = 1; // normal running state of game
-    final int GS_STARTROUND = 2; // flag to start round, transition state, only momentarily existing
-    final int GS_ENDROUNDSUMMARY = 3; // pausing, showing summary at end of round
-    volatile int gamestate = GS_RUNNING;
+    private Paint p;
+    private Point effpt = new Point(); // reusable point for rendering, to avoid excessive obj creation.  brutally un-threadsafe, obviously, but we will use it in only the render thread.
+    private List<Fruit> fruitsSelectable = Collections.synchronizedList(new LinkedList<Fruit>()); // fruits ready for user to throw
+    private List<Fruit> fruitsFlying = Collections.synchronizedList(new LinkedList<Fruit>());  // fruits user has sent flying
+    private List<Fruit> fruitsSplatted = new LinkedList<Fruit>(); // fruits that have splatted on wall
+    private List<Fruit> fruitsRecycled = new LinkedList<Fruit>(); // fruit objects no longer in use
+    private volatile Fruit selectedFruit = null;
+    private int maxShownSelectableFruit;
+    private float touchvx, touchvy;  // touchpoint's velocity
+    private Bitmap wallbtm, pearbtm[], banbtm[], orangebtm[], nutbtm[];
+    private long touchtime = 0, frtime = 0;
+    private Rect scaledDst = new Rect();
+    private MainActivity act = null;
+    private int selectable_speed;
+    private final int GS_RUNNING = 1; // normal running state of game
+    private final int GS_STARTROUND = 2; // flag to start round, transition state, only momentarily existing
+    private final int GS_ENDROUNDSUMMARY = 3; // pausing, showing summary at end of round
+    private final int GS_STARTGAME = 4; // transition state into game
+    private final int GS_GAMEOVER = 5; // player lost
+    private volatile int gamestate = GS_STARTGAME;
 
-    int width = 0;
-    int height = 0;
-    int wallxcenter = 0;
-    int wallycenter = 0;
-    int inity = 0;
-    int minXbound = 0;
-    int maxXbound = 0;
-    int maxYbound = 0;
+    private int width = 0;
+    private int height = 0;
+    private int wallxcenter = 0;
+    private int wallycenter = 0;
+    private int inity = 0;
+    private int minXbound = 0;
+    private int maxXbound = 0;
+    private int maxYbound = 0;
 
     // types of throwables, remaining quantities, values, etc
-    List<Seed> seedsQueued = new LinkedList<Seed>();
-    Seed pearseed;
-    Seed orangeseed;
-    Seed nutseed;
-    int nWallSplats = 0;
-    int nTotFruit = 0;
+    private List<Seed> seedsQueued = new LinkedList<Seed>();
+    private Seed pearseed;
+    private Seed orangeseed;
+    private Seed nutseed;
+    private int nWallSplats = 0;
+    private int nTotFruit = 0;
 
-    int round = 1;
-    int score = 0;
+    private int round;
+    private int score;
+    private int lives;
+    private int hiscore;
+    private static final String HISCORE_FILE = "gwhs.dat";
+    private static final int START_NUMLIVES = 3;
 
-    List<Combo> combos = new ArrayList<Combo>();  // possible combos
-    List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
-    Map<Combo, ComboHit> hitCombos = new HashMap<Combo, ComboHit>(); // combos tht have just been hit, and are being displayed to player
-    List<Seed> neededSeeds = new ArrayList<Seed>(); // the list of seeds required when computing whether a combo has been hit.
-    static final int COMBOHIT_SPEED = 300; // how fast the combohit message rises
-    static final long COMBOHIT_DISPLAYTIME = (int)(0.75 * ONESEC_NANOS); // time to display a combo hit
+    private List<Combo> combos = new ArrayList<Combo>();  // possible combos
+    private List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
+    private Map<Combo, ComboHit> hitCombos = new HashMap<Combo, ComboHit>(); // combos tht have just been hit, and are being displayed to player
+    private List<Seed> neededSeeds = new ArrayList<Seed>(); // the list of seeds required when computing whether a combo has been hit.
+    private static final int COMBOHIT_SPEED = 300; // how fast the combohit message rises
+    private static final long COMBOHIT_DISPLAYTIME = (int)(0.75 * ONESEC_NANOS); // time to display a combo hit
 
     public PlayScreen(MainActivity act) {
         p = new Paint();
@@ -190,10 +202,39 @@ public class PlayScreen extends Screen {
     }
 
     /**
+     * initialize and start a game
+     */
+    void initGame() {
+        score = 0;
+        round = 1;
+        lives = START_NUMLIVES;
+        hiscore = 0;
+        try {
+            BufferedReader f = new BufferedReader(new FileReader(act.getFilesDir() + HISCORE_FILE));
+            hiscore = Integer.parseInt(f.readLine());;
+            f.close();
+        } catch (Exception e) {
+            Log.d(MainActivity.LOG_ID, "ReadHiScore", e);
+        }
+        gamestate = GS_STARTROUND;
+    }
+
+    /**
      * init game for current round
      */
     private void initRound() {
         selectable_speed = INIT_SELECTABLE_SPEED + (round*10);
+
+        if (round < 2)
+            maxShownSelectableFruit = 1;
+        else if (round < 8)
+            maxShownSelectableFruit = 2;
+        else if (round < 14)
+            maxShownSelectableFruit = 3;
+        else if (round < 20)
+            maxShownSelectableFruit = 4;
+        else
+            maxShownSelectableFruit = 5;
 
         fruitsRecycled.addAll(fruitsSplatted);
         fruitsSplatted.clear();
@@ -224,6 +265,23 @@ public class PlayScreen extends Screen {
         nTotFruit = seedsQueued.size();
 
         gamestate = GS_RUNNING;
+    }
+
+    /**
+     * player lost a life
+     */
+    private void loseLife() {
+        lives--;
+        if (lives == 0) {
+            gamestate = GS_GAMEOVER;
+                try {
+                    BufferedWriter f = new BufferedWriter(new FileWriter(act.getFilesDir() + HISCORE_FILE));
+                    f.write(Integer.toString(hiscore));
+                    f.close();
+                } catch (Exception e) { // if we can't write the hi score file...oh well.
+                    Log.d(MainActivity.LOG_ID, "WriteHiScore", e);
+                }
+        }
     }
 
     /**
@@ -275,7 +333,7 @@ public class PlayScreen extends Screen {
      * @param xc  the x center. to which the "z axis" points
      * @param yc  the y center, to which the "z axis" points
      */
-    void drawFruit3Dcoords(Canvas c, Fruit f, Bitmap btm, float xc, float yc) {
+    private void drawFruit3Dcoords(Canvas c, Fruit f, Bitmap btm, float xc, float yc) {
         // render effective x and y, from x y z
         // DRY says this should call renderFromZ, but that creates even more
         // ugliness than this duplication of code, and this code isn't going to change.
@@ -306,15 +364,18 @@ public class PlayScreen extends Screen {
                 hitCombos.remove(combo);
         }
 
-        if (gamestate == GS_STARTROUND) {
+        if (gamestate == GS_STARTGAME) {
+            initGame();
+            return;
+        }
+        else if (gamestate == GS_STARTROUND) {
             // this goofy construction is to make sure we initialize the round from
             // the update/draw thread, not from the UI thread.
             initRound();
             return;
         }
-
-        if (gamestate == GS_ENDROUNDSUMMARY)
-            return;  // nothing else to update
+        else if (gamestate == GS_ENDROUNDSUMMARY || gamestate == GS_GAMEOVER)
+            return;  // we're in pause, there's nothing else to update
 
         if (width == 0) {
             // set variables that rely on screen size
@@ -328,7 +389,7 @@ public class PlayScreen extends Screen {
             // attempt to compute wall bounds at wall z  from screen size.  constants are pure
             // magic, found thru trial and error iterations.
             // if the background picture changes, they will need to be recalibrated.
-            wallbounds_at_wall_z.set((int) (-1.5 * width), (int) (-height * .9), (int) (2.43 * width), inity);  // wall bounds AT WALL Z (!!WaLLzeY!!)
+            wallbounds_at_wall_z.set((int) (-1.5 * width), (int) (-height * .94), (int) (2.43 * width), inity);  // wall bounds AT WALL Z (!!WaLLzeY!!)
 
             // magic trial and error world-bounds contants, based on screen image size
             minXbound = 8 * -width;
@@ -343,9 +404,9 @@ public class PlayScreen extends Screen {
             wallbounds_at_screen_z.set(effl, efft, effr, effb);
         }
 
-        if (fruitsSelectable.size() < MAX_SHOWN_SELECTABLE_FRUIT
+        if (fruitsSelectable.size() < maxShownSelectableFruit
                 && seedsQueued.size() > 0
-                && Math.random() > .9) { // "every now and then" make a fruit available
+                && Math.random() > .95) { // "every now and then" make a fruit available
             Fruit newf = null;
             if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
                 newf = fruitsRecycled.get(0);
@@ -374,6 +435,8 @@ public class PlayScreen extends Screen {
             gamestate = GS_ENDROUNDSUMMARY;
             if (nWallSplats*100/nTotFruit >= MIN_ROUND_PASS_PCT)
                 round++;
+            else
+                loseLife();
         }
 
         // update fruit positions
@@ -537,10 +600,14 @@ public class PlayScreen extends Screen {
             p.setTextSize(45);
             p.setTypeface(act.getGameFont());
             p.setFakeBoldText(true);
-            c.drawText("ROUND "+round, width - 300, 60, p);
+            c.drawText("ROUND " + round, width - 300, 60, p);
+            c.drawText("LIVES "+lives, width - 300, 120, p);
             c.drawText("SCORE: "+score, 10, 60, p);
+            if (score > hiscore)
+                hiscore = score;
+            c.drawText("HIGH: "+hiscore, 10, 120, p);
 
-            if (gamestate == GS_ENDROUNDSUMMARY) {
+            if (gamestate == GS_ENDROUNDSUMMARY || gamestate == GS_GAMEOVER) {
                 // round ended, display stats
                 int splatPct = (int)(nWallSplats*100/nTotFruit);
 
@@ -562,7 +629,12 @@ public class PlayScreen extends Screen {
                 else {
                     c.drawText("eEEeEeeEh!! sPAzTIc!", width / 4, (int) (height / 2.5), p);
                 }
-                c.drawText("Touch to continue", width/4, height*2/3, p);
+                if (gamestate != GS_GAMEOVER)
+                    c.drawText("Touch to continue", width/4, height*2/3, p);
+            }
+            if (gamestate == GS_GAMEOVER) {
+                c.drawText("Game OveR!", width/3, height/2, p);
+                c.drawText("Touch to end game", width/4, height*2/3, p);
             }
 
         } catch (Exception e) {
@@ -581,23 +653,29 @@ public class PlayScreen extends Screen {
             case MotionEvent.ACTION_DOWN:
                 if (gamestate == GS_ENDROUNDSUMMARY) {
                     gamestate = GS_STARTROUND; // prep and start round
+                    return false; // no followup msgs
                 }
-                synchronized (fruitsSelectable) {
-                    for (Fruit f : fruitsSelectable) {
-                        if (f.hasCollision(e.getX(), e.getY()))
-                            selectedFruit = f;
-                    }
-                }
-                if(mVelocityTracker == null) {
-                    // Retrieve a new VelocityTracker object to watch the velocity of a motion.
-                    mVelocityTracker = VelocityTracker.obtain();
+                else if (gamestate == GS_GAMEOVER) {
+                    act.leaveGame(); // user touched after gameover -> back to entry screen
+                    return false;  // no followup msgs
                 }
                 else {
-                    // Reset the velocity tracker back to its initial state.
-                    mVelocityTracker.clear();
+                    synchronized (fruitsSelectable) {
+                        for (Fruit f : fruitsSelectable) {
+                            if (f.hasCollision(e.getX(), e.getY()))
+                                selectedFruit = f;
+                        }
+                    }
+                    if (mVelocityTracker == null) {
+                        // Retrieve a new VelocityTracker object to watch the velocity of a motion.
+                        mVelocityTracker = VelocityTracker.obtain();
+                    } else {
+                        // Reset the velocity tracker back to its initial state.
+                        mVelocityTracker.clear();
+                    }
+                    // Add a user's movement to the tracker.
+                    mVelocityTracker.addMovement(e);
                 }
-                // Add a user's movement to the tracker.
-                mVelocityTracker.addMovement(e);
                 break;
 
             case MotionEvent.ACTION_MOVE:

@@ -18,7 +18,7 @@ import android.view.WindowManager;
 public class MainActivity extends ActionBarActivity {
     static final String LOG_ID = "Greenie";
     Screen entryScreen;
-    Screen playScreen;
+    PlayScreen playScreen;
     Screen currentScreen;
     FullScreenView mainView;
     Typeface gamefont;
@@ -104,6 +104,7 @@ public class MainActivity extends ActionBarActivity {
      * Start a new game.
      */
     public void startGame() {
+        this.playScreen.initGame();
         currentScreen = this.playScreen;
     }
 

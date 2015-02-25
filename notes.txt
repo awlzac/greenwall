@@ -4,11 +4,15 @@ green wall notes
 next up:
  - add sound
  - add milk, ice cream, banana, ketchups
- - combos, and keep combo text on screen
- - add lives
+ - more combos
  - change combo text to btm, with text and image, alpha bg
  - starter icon
  - add splat to title screen
+ - add spaz to combo
+  min number of combos per round
+  targets
+  catch exit and go bac to title screen.  are you sure?
+
 
 
 log---
