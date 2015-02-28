@@ -16,8 +16,6 @@ import android.view.View;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -49,13 +47,17 @@ public class PlayScreen extends Screen {
     static final float WALL_Y_CENTER_FACTOR = 0.38f;  // factor giving y "center" of wall; this is used as infinity on z axis
     static final Rect wallbounds_at_wall_z = new Rect();  // wall bounds AT WALL Z (!!WaLLzeY!!)
     static final Rect wallbounds_at_screen_z = new Rect();  // wall bounds at screen z
-    static final float WALLZFACT = 1.0f - (ZSTRETCH/(WALL_Z+ZSTRETCH));
+    static final float WALLZFACT = 1.0f - (ZSTRETCH / (WALL_Z + ZSTRETCH));
     static final long ONESEC_NANOS = 1000000000L;
     static final int ACC_GRAVITY = 5000;
     static final int INIT_SELECTABLE_SPEED = 150;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     static final int MIN_ROUND_PASS_PCT = 50;  // pct splatted on wall that we require to advance level
+    static final String LINE_SPLIT_MARKER = "#";
+    static final int TS_NORMAL = 45; // normal text size
+    static final int TS_BIG = 60; // large text size
+
     private Paint p;
     private Point effpt = new Point(); // reusable point for rendering, to avoid excessive obj creation.  brutally un-threadsafe, obviously, but we will use it in only the render thread.
     private List<Fruit> fruitsSelectable = Collections.synchronizedList(new LinkedList<Fruit>()); // fruits ready for user to throw
@@ -69,13 +71,10 @@ public class PlayScreen extends Screen {
     private Rect scaledDst = new Rect();
     private MainActivity act = null;
     private int selectable_speed;
-    private final int GS_RUNNING = 1; // normal running state of game
-    private final int GS_STARTROUND = 2; // flag to start round, transition state, only momentarily existing
-    private final int GS_ENDROUNDSUMMARY = 3; // pausing, showing summary at end of round
-    private final int GS_STARTGAME = 4; // transition state into game
-    private final int GS_GAMEOVER = 5; // player lost
-    private volatile int gamestate = GS_STARTGAME;
-    private int fps=0; // rendering rate, frames per sec
+
+    private enum State {        RUNNING, STARTROUND, ROUNDSUMMARY, STARTGAME, PLAYERDIED, GAMEOVER    }
+    private volatile State gamestate = State.STARTGAME;
+    private int fps = 0; // rendering rate, frames per sec
 
     private int width = 0;
     private int height = 0;
@@ -105,13 +104,20 @@ public class PlayScreen extends Screen {
     private int hiscore;
     private static final String HISCORE_FILE = "gwhs.dat";
     private static final int START_NUMLIVES = 3;
+    private Map<Integer, String> levelmsgMap = new HashMap<Integer, String>();
+    private final int LEVEL_ORANGE = 2;  // level where oranges are added
+    private final int LEVEL_BANANA = 3;
+    private final int LEVEL_MILK = 4;
+    private final int LEVEL_KETCHUP = 6;
+    private final int LEVEL_ICECREAM = 7;
+    private final int LEVEL_NUT = 9;
 
     private List<Combo> combos = new ArrayList<Combo>();  // possible combos
     private List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
     private Map<Combo, ComboHit> hitCombos = new HashMap<Combo, ComboHit>(); // combos tht have just been hit, and are being displayed to player
     private List<Seed> neededSeeds = new ArrayList<Seed>(); // the list of seeds required when computing whether a combo has been hit.
     private static final int COMBOHIT_SPEED = 300; // how fast the combohit message rises
-    private static final long COMBOHIT_DISPLAYTIME = (int)(0.75 * ONESEC_NANOS); // time to display a combo hit
+    private static final long COMBOHIT_DISPLAYTIME = (int) (0.75 * ONESEC_NANOS); // time to display a combo hit
 
     public PlayScreen(MainActivity act) {
         p = new Paint();
@@ -218,7 +224,7 @@ public class PlayScreen extends Screen {
             inputStream = assetManager.open("milk4.png");
             milkbtm[3] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
-            inputStream = assetManager.open("milksplat.png");
+            inputStream = assetManager.open("milksplat1.png");
             milkbtm[4] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
 
@@ -245,16 +251,32 @@ public class PlayScreen extends Screen {
             sl.add(pearseed);
             sl.add(orangeseed);
             sl.add(banseed);
-            combos.add(new Combo(sl, "Fruit Salad!", 80));
+            combos.add(new Combo(sl, "Fruit Salad!", 100));
+            sl = new ArrayList<Seed>();
+            sl.add(milkseed);
+            sl.add(banseed);
+            combos.add(new Combo(sl, "BanaNa MiLKshaKe!", 80));
+            sl = new ArrayList<Seed>();
+            sl.add(orangeseed);
+            sl.add(icseed);
+            combos.add(new Combo(sl, "OrangE CreaM!", 80));
             sl = new ArrayList<Seed>();
             sl.add(milkseed);
             sl.add(nutseed);
-            combos.add(new Combo(sl, "chOcolaTe MiLK!", 80));
+            combos.add(new Combo(sl, "chOcolaTe MiLK!", 100));
             sl = new ArrayList<Seed>();
             sl.add(banseed);
             sl.add(icseed);
             sl.add(nutseed);
-            combos.add(new Combo(sl, "bAnaNA sPLiT!!", 100));
+            combos.add(new Combo(sl, "bAnaNA sPLiT!!", 150));
+
+            levelmsgMap.put(Integer.valueOf(1), "tImE to SPlaT!");
+            levelmsgMap.put(Integer.valueOf(LEVEL_ORANGE), "Orange ya glad there's more#fruit to throw?");
+            levelmsgMap.put(Integer.valueOf(LEVEL_BANANA), "Splat pear+orange+banana#in the same place...fruit salad!");
+            levelmsgMap.put(Integer.valueOf(LEVEL_MILK), "Some milk to wash all that#fruit down?");
+            levelmsgMap.put(Integer.valueOf(LEVEL_KETCHUP), "Don't pop the ketchup packets!#Nobody likes that.");
+            levelmsgMap.put(Integer.valueOf(LEVEL_ICECREAM), "time for ICE CREAM!#And more combinations!");
+            levelmsgMap.put(Integer.valueOf(LEVEL_NUT), "Mmm...chocolate sauce!#Hit those combos!");
 
             p.setTypeface(act.getGameFont());
             round = 1;
@@ -266,6 +288,18 @@ public class PlayScreen extends Screen {
     }
 
     /**
+     * clear fruit lists
+     */
+    private void clearLists() {
+        fruitsRecycled.addAll(fruitsSplatted);
+        fruitsSplatted.clear();
+        fruitsRecycled.addAll(fruitsSelectable);
+        fruitsSelectable.clear();
+        fruitsRecycled.addAll(fruitsFlying);
+        fruitsFlying.clear();
+    }
+
+    /**
      * initialize and start a game
      */
     void initGame() {
@@ -273,19 +307,23 @@ public class PlayScreen extends Screen {
         round = 1;
         lives = START_NUMLIVES;
         hiscore = 0;
+
+        clearLists();
         try {
             BufferedReader f = new BufferedReader(new FileReader(act.getFilesDir() + HISCORE_FILE));
-            hiscore = Integer.parseInt(f.readLine());;
+            hiscore = Integer.parseInt(f.readLine());
+            ;
             f.close();
         } catch (Exception e) {
             Log.d(MainActivity.LOG_ID, "ReadHiScore", e);
         }
-        gamestate = GS_STARTROUND;
+        gamestate = State.STARTGAME;
     }
 
     /**
      * add the specified number of the specified fruit seed to the specified list.
      * seeds are added at random locations in the list.
+     *
      * @param list
      * @param n
      */
@@ -300,7 +338,7 @@ public class PlayScreen extends Screen {
      * init game for current round
      */
     private void initRound() {
-        selectable_speed = INIT_SELECTABLE_SPEED + (round*10);
+        selectable_speed = INIT_SELECTABLE_SPEED + (round * 10);
 
         if (round < 2)
             maxShownSelectableFruit = 1;
@@ -313,30 +351,29 @@ public class PlayScreen extends Screen {
         else
             maxShownSelectableFruit = 5;
 
-        fruitsRecycled.addAll(fruitsSplatted);
-        fruitsSplatted.clear();
+        clearLists();
 
         // set up fruits to throw
         seedsQueued.clear();
-        addFruitSeed(seedsQueued, pearseed, 5+round/2);
-        if (round > 1)
-            addFruitSeed(seedsQueued, orangeseed, 4+round/2);
-        if (round > 2)
-            addFruitSeed(seedsQueued, banseed, round/2);
-        if (round > 4)
-            addFruitSeed(seedsQueued, milkseed, 1+round/3);
-        if (round > 7)
-            addFruitSeed(seedsQueued, icseed, round/3);
-        if (round > 9)
-            addFruitSeed(seedsQueued, nutseed, round/3);
+        addFruitSeed(seedsQueued, pearseed, 5 + round / 2);
+        if (round >= LEVEL_ORANGE)
+            addFruitSeed(seedsQueued, orangeseed, 4 + round / 2);
+        if (round >= LEVEL_BANANA)
+            addFruitSeed(seedsQueued, banseed, round / 2);
+        if (round >= LEVEL_MILK)
+            addFruitSeed(seedsQueued, milkseed, 1 + round / 3);
+        if (round >= LEVEL_ICECREAM)
+            addFruitSeed(seedsQueued, icseed, round / 3);
+        if (round >= LEVEL_NUT)
+            addFruitSeed(seedsQueued, nutseed, round / 3);
 
-        if (round > 5)
-            addFruitSeed(seedsQueued, ketseed, round/2);
+        if (round >= LEVEL_KETCHUP)
+            addFruitSeed(seedsQueued, ketseed, round / 2);
 
         nWallSplats = 0;
         nTotFruit = seedsQueued.size();
 
-        gamestate = GS_RUNNING;
+        gamestate = State.RUNNING;
     }
 
     /**
@@ -345,15 +382,16 @@ public class PlayScreen extends Screen {
     private void loseLife() {
         lives--;
         if (lives == 0) {
-            gamestate = GS_GAMEOVER;
-                try {
-                    BufferedWriter f = new BufferedWriter(new FileWriter(act.getFilesDir() + HISCORE_FILE));
-                    f.write(Integer.toString(hiscore));
-                    f.close();
-                } catch (Exception e) { // if we can't write the hi score file...oh well.
-                    Log.d(MainActivity.LOG_ID, "WriteHiScore", e);
-                }
-        }
+            gamestate = State.GAMEOVER;
+            try {
+                BufferedWriter f = new BufferedWriter(new FileWriter(act.getFilesDir() + HISCORE_FILE));
+                f.write(Integer.toString(hiscore));
+                f.close();
+            } catch (Exception e) { // if we can't write the hi score file...oh well.
+                Log.d(MainActivity.LOG_ID, "WriteHiScore", e);
+            }
+        } else
+            gamestate = State.PLAYERDIED;
     }
 
     /**
@@ -364,7 +402,7 @@ public class PlayScreen extends Screen {
         String name;
         int points;
 
-        public Combo (List<Seed> seeds, String name, int points) {
+        public Combo(List<Seed> seeds, String name, int points) {
             this.seeds = seeds;
             this.name = name;
             this.points = points;
@@ -372,8 +410,8 @@ public class PlayScreen extends Screen {
     }
 
     private class ComboHit {
-        float x=0;
-        float y=0;
+        float x = 0;
+        float y = 0;
         long hitTime = 0;
         int alpha = 0; // translucence
     }
@@ -381,15 +419,16 @@ public class PlayScreen extends Screen {
     /**
      * return the effective screen x,y point rendered from the inpassed
      * (x, y, z) point.
+     *
      * @param x
      * @param y
      * @param z
      * @return
      */
     private Point renderFromZ(float x, float y, float z, float xc, float yc) {
-        float zfact = 1.0f - (ZSTRETCH/(z+ZSTRETCH));
-        int effx = (int)(x + (zfact * (xc-x)));
-        int effy = (int)(y + (zfact * (yc-y)));
+        float zfact = 1.0f - (ZSTRETCH / (z + ZSTRETCH));
+        int effx = (int) (x + (zfact * (xc - x)));
+        int effy = (int) (y + (zfact * (yc - y)));
         effpt.set(effx, effy);
         return effpt;
     }
@@ -399,6 +438,7 @@ public class PlayScreen extends Screen {
      * Draw the inpassed fruit, using the inpassed bitmap, rendering the
      * fruit's x/y/z position to the
      * actual x/y screen coords.
+     *
      * @param c
      * @param f
      * @param btm
@@ -409,11 +449,11 @@ public class PlayScreen extends Screen {
         // render effective x and y, from x y z
         // DRY says this should call renderFromZ, but that creates even more
         // ugliness than this duplication of code, and this code isn't going to change.
-        float zfact = 1.0f - (ZSTRETCH/(f.z+ZSTRETCH));
-        int effx = (int)(f.x + (zfact * (xc-f.x)));
-        int effy = (int)(f.y + (zfact * (yc-f.y)));
-        int effhalfw = (int)(f.seed.halfWidth * (1.0f - zfact));
-        int effhalfh = (int)(f.seed.halfHeight * (1.0f - zfact));
+        float zfact = 1.0f - (ZSTRETCH / (f.z + ZSTRETCH));
+        int effx = (int) (f.x + (zfact * (xc - f.x)));
+        int effy = (int) (f.y + (zfact * (yc - f.y)));
+        int effhalfw = (int) (f.seed.halfWidth * (1.0f - zfact));
+        int effhalfh = (int) (f.seed.halfHeight * (1.0f - zfact));
         scaledDst.set(effx - effhalfw, effy - effhalfh, effx + effhalfw, effy + effhalfh);
         c.drawBitmap(btm, null, scaledDst, p);
     }
@@ -421,9 +461,9 @@ public class PlayScreen extends Screen {
     @Override
     public void update(View v) {
         long newtime = System.nanoTime();
-        float elapsedsecs = (float)(newtime - frtime) / ONESEC_NANOS;
+        float elapsedsecs = (float) (newtime - frtime) / ONESEC_NANOS;
         frtime = newtime;
-        fps = (int)(1/elapsedsecs);
+        fps = (int) (1 / elapsedsecs);
 
         // update combo hits
         Iterator<Combo> hcit = hitCombos.keySet().iterator();
@@ -432,23 +472,21 @@ public class PlayScreen extends Screen {
             ComboHit ch = hitCombos.get(combo);
             ch.y -= COMBOHIT_SPEED * elapsedsecs;
             float chtime = frtime - ch.hitTime;
-            ch.alpha = (int)(255 * (1.0f - chtime/COMBOHIT_DISPLAYTIME));
+            ch.alpha = (int) (255 * (1.0f - chtime / COMBOHIT_DISPLAYTIME));
             if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME)
                 hcit.remove();
         }
 
-        if (gamestate == GS_STARTGAME) {
-            initGame();
-            return;
-        }
-        else if (gamestate == GS_STARTROUND) {
+        if (gamestate == State.STARTROUND) {
             // this goofy construction is to make sure we initialize the round from
             // the update/draw thread, not from the UI thread.
             initRound();
             return;
         }
-        else if (gamestate == GS_ENDROUNDSUMMARY || gamestate == GS_GAMEOVER)
-            return;  // we're in pause, there's nothing else to update
+//        else if (gamestate == State.ROUNDSUMMARY
+//                || gamestate == State.PLAYERDIED
+//                || gamestate == State.GAMEOVER)
+//            return;  // we're in pause, there's nothing else to update
 
         if (width == 0) {
             // set variables that rely on screen size
@@ -477,15 +515,15 @@ public class PlayScreen extends Screen {
             wallbounds_at_screen_z.set(effl, efft, effr, effb);
         }
 
-        if (fruitsSelectable.size() < maxShownSelectableFruit
+        if (gamestate == State.RUNNING
+                && fruitsSelectable.size() < maxShownSelectableFruit
                 && seedsQueued.size() > 0
                 && Math.random() > .95) { // "every now and then" make a fruit available
             Fruit newf = null;
             if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
                 newf = fruitsRecycled.get(0);
                 fruitsRecycled.remove(0);
-            }
-            else { // create if needed
+            } else { // create if needed
                 newf = new Fruit();
             }
             int initx = 0;
@@ -500,15 +538,15 @@ public class PlayScreen extends Screen {
             seedsQueued.remove(0);
             newf.init(s, initx, inity, 0, speed);
             fruitsSelectable.add(newf);
-        }
-        else if (fruitsSelectable.size() == 0
+        } else if (gamestate == State.RUNNING
+                && fruitsSelectable.size() == 0
                 && fruitsFlying.size() == 0
                 && seedsQueued.size() == 0) {
-            // round is over
-            gamestate = GS_ENDROUNDSUMMARY;
-            if (nWallSplats*100/nTotFruit >= MIN_ROUND_PASS_PCT)
+            // round is complete
+            if (nWallSplats * 100 / nTotFruit >= MIN_ROUND_PASS_PCT) {
                 round++;
-            else
+                gamestate = State.ROUNDSUMMARY;
+            } else
                 loseLife();
         }
 
@@ -521,7 +559,7 @@ public class PlayScreen extends Screen {
                 f.y += f.vy * elapsedsecs;
                 f.z += f.vz * elapsedsecs;
                 f.vy += ACC_GRAVITY * elapsedsecs;
-                if (f.z >= WALL_Z && wallbounds_at_wall_z.contains((int)f.x, (int)f.y)) {
+                if (f.z >= WALL_Z && wallbounds_at_wall_z.contains((int) f.x, (int) f.y)) {
                     // fruit has hit wall
                     fit.remove();
                     fruitsSplatted.add(f);
@@ -531,68 +569,65 @@ public class PlayScreen extends Screen {
 
                     // check combo
 //                    synchronized (fruitsSplatted) {
-                        for (Combo c : combos) {
-                            neededSeeds.clear();
-                            neededSeeds.addAll(c.seeds);
-                            neededSeeds.remove(f.seed);
-                            comboFruits.clear();
-                            comboFruits.add(f);
-                            for (Fruit spf : fruitsSplatted) {
-                                if (neededSeeds.contains(spf.seed)) {
-                                    if (spf.getBounds().intersect(f.getBounds())) {
-                                        neededSeeds.remove(spf.seed);
-                                        comboFruits.add(spf);
-                                    }
-                                    if (neededSeeds.size() == 0)
-                                        break;
+                    for (Combo c : combos) {
+                        neededSeeds.clear();
+                        neededSeeds.addAll(c.seeds);
+                        neededSeeds.remove(f.seed);
+                        comboFruits.clear();
+                        comboFruits.add(f);
+                        for (Fruit spf : fruitsSplatted) {
+                            if (neededSeeds.contains(spf.seed)) {
+                                if (spf.getBounds().intersect(f.getBounds())) {
+                                    neededSeeds.remove(spf.seed);
+                                    comboFruits.add(spf);
                                 }
-                            }
-                            if (neededSeeds.size() == 0) {
-                                // combo is hit
-                                score += c.points;
-                                for (Fruit spf : comboFruits) {
-                                    fruitsSplatted.remove(spf);
-                                }
-
-                                // combo sound play
-                                effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter);
-                                ComboHit ch = new ComboHit();
-
-                                // display combo hit message "somewhere next to" combo hit
-                                ch.x = effpt.x + (float)Math.random() * 100 -50;
-                                ch.y = effpt.y + (float)Math.random() * 100 -80;
-
-                                // ensure combo display is fully onscreen
-                                p.getTextBounds(c.name, 0, c.name.length(), scaledDst);
-                                if (ch.x < 0)
-                                    ch.x = 0;
-                                else if (ch.x > width - scaledDst.width())
-                                    ch.x = width - scaledDst.width();
-
-                                ch.hitTime = System.nanoTime();
-                                hitCombos.put(c, ch);
+                                if (neededSeeds.size() == 0)
+                                    break;
                             }
                         }
+                        if (neededSeeds.size() == 0) {
+                            // combo is hit
+                            score += c.points;
+                            for (Fruit spf : comboFruits) {
+                                fruitsSplatted.remove(spf);
+                            }
+
+                            // combo sound play
+                            effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter);
+                            ComboHit ch = new ComboHit();
+
+                            // display combo hit message "somewhere next to" combo hit
+                            ch.x = effpt.x + (float) Math.random() * 100 - 50;
+                            ch.y = effpt.y + (float) Math.random() * 100 - 80;
+
+                            // ensure combo display is fully onscreen
+                            p.getTextBounds(c.name, 0, c.name.length(), scaledDst);
+                            if (ch.x < 0)
+                                ch.x = 0;
+                            else if (ch.x > width - scaledDst.width())
+                                ch.x = width - scaledDst.width();
+
+                            ch.hitTime = System.nanoTime();
+                            hitCombos.put(c, ch);
+                        }
+                    }
 //                    }
 
-                }
-                else if (f.y > inity
+                } else if (f.y > inity
                         && f.y < inity + f.vy * elapsedsecs
-                        && f.z > WALL_Z/2) {
+                        && f.z > WALL_Z / 2) {
                     // fruit has hit ground near wall
                     fit.remove();
                     fruitsSplatted.add(f);
-                }
-                else if (f.z > WALL_Z
+                } else if (f.z > WALL_Z
                         // here we goofily force java to call render function when we need it
-                        && (effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter))!=null
+                        && (effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter)) != null
                         && wallbounds_at_screen_z.contains(effpt.x, effpt.y)
                         ) {
                     // wild pitch, behind wall
                     fit.remove();
                     fruitsRecycled.add(f);
-                }
-                else if (f.y > maxYbound
+                } else if (f.y > maxYbound
                         || f.x >= maxXbound
                         || f.x <= minXbound) {
                     // wild pitch, out of bounds
@@ -601,20 +636,23 @@ public class PlayScreen extends Screen {
                 }
             }
         }
-        synchronized (fruitsSelectable) {
-            Iterator<Fruit> fit = fruitsSelectable.iterator();
-            while (fit.hasNext()) {
-                Fruit f = fit.next();
-                if (f != selectedFruit) {
-                    f.x += f.vx * elapsedsecs;
-                    f.y += (inity - f.y) / 3;
-                    if (f.y - inity < 0.9)
-                      f.y += SELECTABLE_Y_PLAY;
-                }
-                if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
-                    // we floated off screen
-                    fit.remove();
-                    fruitsRecycled.add(f);
+
+        if (gamestate == State.RUNNING) {
+            synchronized (fruitsSelectable) {
+                Iterator<Fruit> fit = fruitsSelectable.iterator();
+                while (fit.hasNext()) {
+                    Fruit f = fit.next();
+                    if (f != selectedFruit) {
+                        f.x += f.vx * elapsedsecs;
+                        f.y += (inity - f.y) / 3;
+                        if (f.y - inity < 0.9)
+                            f.y += SELECTABLE_Y_PLAY;
+                    }
+                    if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
+                        // we floated off screen
+                        fit.remove();
+                        fruitsRecycled.add(f);
+                    }
                 }
             }
         }
@@ -622,6 +660,7 @@ public class PlayScreen extends Screen {
 
     /**
      * draw the screen.
+     *
      * @param c
      * @param v
      */
@@ -637,7 +676,7 @@ public class PlayScreen extends Screen {
             //c.drawRect(wallbounds_at_screen_z, p);
 
             // draw fruits
-            for (Fruit f : fruitsSplatted){
+            for (Fruit f : fruitsSplatted) {
                 drawFruit3Dcoords(c, f, f.getSplatBitmap(), wallxcenter, wallycenter);
             }
             synchronized (fruitsFlying) {
@@ -656,7 +695,7 @@ public class PlayScreen extends Screen {
             for (Combo combo : hitCombos.keySet()) {
                 ComboHit ch = hitCombos.get(combo);
                 p.setColor(Color.YELLOW);
-                p.setARGB(ch.alpha, 200+(int)(Math.random() * 50),  200+(int)(Math.random() * 50),  (int)(Math.random() * 50));
+                p.setARGB(ch.alpha, 200 + (int) (Math.random() * 50), 200 + (int) (Math.random() * 50), (int) (Math.random() * 50));
 //                p.setColor((int)(Math.random() * 65536));
                 p.setTypeface(act.getGameFont());
                 p.setTextSize(45);
@@ -670,50 +709,95 @@ public class PlayScreen extends Screen {
 //                            + " ffvz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1),
 //                    , 0, 200, p);
             p.setColor(Color.WHITE);
-            p.setTextSize(45);
+            p.setTextSize(TS_NORMAL);
             p.setTypeface(act.getGameFont());
             p.setFakeBoldText(true);
             c.drawText("ROUND " + round, width - 300, 60, p);
-            c.drawText("LIVES "+lives, width - 300, 120, p);
-            c.drawText("SCORE: "+score, 10, 60, p);
+            c.drawText("LIVES " + lives, width - 300, 120, p);
+            c.drawText("SCORE: " + score, 10, 60, p);
             if (score > hiscore)
                 hiscore = score;
-            c.drawText("HIGH: "+hiscore, 10, 120, p);
+            c.drawText("HIGH: " + hiscore, 10, 120, p);
 
-            if (gamestate == GS_ENDROUNDSUMMARY || gamestate == GS_GAMEOVER) {
-                // round ended, display stats
-                int splatPct = (int)(nWallSplats*100/nTotFruit);
+            // game programming!  pure, constant state manipulation!
+            // this is like fingernails on a chalkboard for functional programming crowd
 
-                c.drawText(splatPct+"% sPLAttaGe!", width/4, height/3, p);
-                if (splatPct < 50)
-                    c.drawText("Ooops...try again.", width/4, (int)(height/2.5), p);
-                else if (splatPct < 60)
-                    c.drawText("Not too bad.", width/4, (int)(height/2.5), p);
-                else if (splatPct < 70)
-                    c.drawText("Nice!", width*3/4, (int)(height/2.5), p);
-                else if (splatPct < 90) {
-                    c.drawText("sPAzTIc!", width / 3, (int) (height / 2.5), p);
-                    c.drawText("CruDe!!", width / 2, (int) (height / 2.2), p);
+            if (gamestate == State.ROUNDSUMMARY
+                    || gamestate == State.STARTGAME
+                    || gamestate == State.PLAYERDIED
+                    || gamestate == State.GAMEOVER) {
+                if (gamestate != State.STARTGAME) {
+                    // round ended, by completion or player death, display stats
+                    int splatPct = (int) (nWallSplats * 100 / nTotFruit);
+
+                    c.drawText(splatPct + "% sPLAttaGe!", width / 4, height / 3, p);
+                    if (gamestate == State.ROUNDSUMMARY) {
+                        if (splatPct < 50)
+                            c.drawText("Ooops...try again.", width / 4, (int) (height / 2.5), p);
+                        else if (splatPct < 60)
+                            c.drawText("Not too bad.", width / 4, (int) (height / 2.5), p);
+                        else if (splatPct < 70)
+                            c.drawText("Nice!", width * 3 / 4, (int) (height / 2.5), p);
+                        else if (splatPct < 90) {
+                            c.drawText("cRuDe!", width / 3, (int) (height / 2.5), p);
+                        } else if (round > 8) {
+                            c.drawText("Dude, really?!", width / 4, (int) (height / 2.5), p);
+                            c.drawText("Awesome.", width / 3, (int) (height / 2.2), p);
+                        } else {
+                            c.drawText("eEEeEeeEh!! sPAzMiC!", width / 4, (int) (height / 2.5), p);
+                        }
+                    } else if (gamestate == State.PLAYERDIED)
+                        c.drawText("...Ooops.", width / 3, (int) (height / 2), p);
                 }
-                else if (round > 8) {
-                    c.drawText("Dude, really?!", width / 4, (int) (height / 2.5), p);
-                    c.drawText("That was awesome.", width / 3, (int) (height / 2.2), p);
+
+                if (gamestate != State.PLAYERDIED) {
+                    String msg = levelmsgMap.get(Integer.valueOf(round));  // this is horrible, on many levels.
+                    if (msg != null) {
+                        if (msg.contains(LINE_SPLIT_MARKER)) {
+                            drawCenteredText(c, msg.substring(0, msg.indexOf(LINE_SPLIT_MARKER)), height * 3 / 5, p, 0);
+                            drawCenteredText(c, msg.substring(msg.indexOf(LINE_SPLIT_MARKER) + 1), height * 2 / 3, p, 0);
+                        } else
+                            drawCenteredText(c, msg, height * 3 / 5, p, 0);
+                    }
                 }
-                else {
-                    c.drawText("eEEeEeeEh!! sPAzTIc!", width / 4, (int) (height / 2.5), p);
+
+                if (gamestate != State.GAMEOVER) {
+                    p.setTextSize(TS_BIG);
+                    p.setColor(Color.RED);
+                    drawCenteredText(c, "Touch to continue", height * 4/5, p, -2);
+                    p.setColor(Color.WHITE);
+                    drawCenteredText(c, "Touch to continue", height * 4 / 5, p, 0);
                 }
-                if (gamestate != GS_GAMEOVER)
-                    c.drawText("Touch to continue", width/4, height*2/3, p);
             }
-            if (gamestate == GS_GAMEOVER) {
-                c.drawText("Game OveR!", width/3, height/2, p);
-                c.drawText("Touch to end game", width/4, height*2/3, p);
+            if (gamestate == State.GAMEOVER) {
+                p.setTextSize(TS_BIG);
+                p.setColor(Color.RED);
+                drawCenteredText(c, "GamE oVeR!", height /2, p, -2);
+                drawCenteredText(c, "Touch to end game", height * 4 /5, p, -2);
+                p.setColor(Color.WHITE);
+                drawCenteredText(c, "GamE oVeR!", height /2, p, 0);
+                drawCenteredText(c, "Touch to end game", height * 4 /5, p, 0);
             }
 
         } catch (Exception e) {
             Log.e(MainActivity.LOG_ID, "draw", e);
             e.printStackTrace();
         }
+    }
+
+    /**
+     * draw text onscreen, centered, at the inpassed height.  last param can be used to shift
+     * text horizontally.
+     *
+     * @param c
+     * @param msg
+     * @param height
+     * @param p
+     * @param shift pixels to horizontally shift text.  normally 0
+     */
+    private void drawCenteredText(Canvas c, String msg, int height, Paint p, int shift) {
+        p.getTextBounds(msg, 0, msg.length() - 1, scaledDst);
+        c.drawText(msg, (width - scaledDst.width()) / 2 + shift, height, p);
     }
 
     VelocityTracker mVelocityTracker = null;
@@ -724,19 +808,32 @@ public class PlayScreen extends Screen {
         touchtime = newtime;
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                if (gamestate == GS_ENDROUNDSUMMARY) {
-                    gamestate = GS_STARTROUND; // prep and start round
+                if (gamestate == State.ROUNDSUMMARY
+                        || gamestate == State.STARTGAME
+                        || gamestate == State.PLAYERDIED) {
+                    gamestate = State.STARTROUND; // prep and start round
                     return false; // no followup msgs
                 }
-                else if (gamestate == GS_GAMEOVER) {
+                else if (gamestate == State.GAMEOVER) {
                     act.leaveGame(); // user touched after gameover -> back to entry screen
                     return false;  // no followup msgs
                 }
                 else {
                     synchronized (fruitsSelectable) {
-                        for (Fruit f : fruitsSelectable) {
+                        Iterator<Fruit> itf = fruitsSelectable.iterator();
+                        while (itf.hasNext()) {
+                            Fruit f = itf.next();
                             if (f.hasCollision(e.getX(), e.getY()))
-                                selectedFruit = f;
+                                if (f.seed == ketseed) {
+                                    // user popped ketchup
+                                    itf.remove();
+                                    fruitsSplatted.add(f);  // so it displays as splatted
+                                    loseLife();
+                                    return false; // no followup msgs
+                                } else {
+                                    //user picked up a fruit
+                                    selectedFruit = f;
+                                }
                         }
                     }
                     if (mVelocityTracker == null) {

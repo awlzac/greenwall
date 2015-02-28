@@ -4,7 +4,6 @@ green wall notes
 next up:
  - add sound
  - add proper banana
- - more combos - have 3 of 2 and 3 of 3
  - change combo text to btm, with text and image, alpha bg
  - starter icon
  - add splat to title screen
@@ -12,7 +11,6 @@ next up:
   min number of combos per round -> per 10 levs, combo reqt.  after lev 20, reqt is in a scrqqn quadrant
   targets?
   catch phone exit and go bac to title screen.  are you sure?
-  make ketchups bad haha
 
 
 
