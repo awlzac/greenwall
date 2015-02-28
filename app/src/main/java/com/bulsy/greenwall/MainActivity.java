@@ -1,8 +1,14 @@
 package com.bulsy.greenwall;
 
+import android.animation.AnimatorSet;
 import android.content.Context;
+import android.content.res.AssetFileDescriptor;
+import android.content.res.AssetManager;
 import android.graphics.Canvas;
 import android.graphics.Typeface;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -15,6 +21,9 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class MainActivity extends ActionBarActivity {
     static final String LOG_ID = "Greenie";
     Screen entryScreen;
@@ -22,6 +31,8 @@ public class MainActivity extends ActionBarActivity {
     Screen currentScreen;
     FullScreenView mainView;
     Typeface gamefont;
+    public SoundPool soundpool = null;
+    Map<Sound, Integer> soundMap = null;
 
 
     /**
@@ -47,11 +58,31 @@ public class MainActivity extends ActionBarActivity {
 
 //        gamefont = Typeface.createFromAsset(getAssets(), "smartiecaps.ttf");
             gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
+
+            setVolumeControlStream(AudioManager.STREAM_MUSIC);
+            soundpool = new SoundPool(15, AudioManager.STREAM_MUSIC, 0);
+            soundMap = new HashMap();
+            AssetFileDescriptor descriptor = getAssets().openFd("combo2.mp3");
+            soundMap.put(Sound.COMBO, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("splat.mp3");
+            soundMap.put(Sound.SPLAT, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("wetsplat.mp3");
+            soundMap.put(Sound.WETSPLAT, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("wetsplat2.mp3");
+            soundMap.put(Sound.KSPLAT, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("whoosh.mp3");
+            soundMap.put(Sound.THROW, soundpool.load(descriptor, 1));
         } catch (Exception e) {
             // panic, crash, fine -- but let me know what happened.
             Log.d(LOG_ID, "onCreate", e);
-            throw e;
         }
+    }
+
+    public void playSound(Sound s, float vol, float rate) {
+        soundpool.play(soundMap.get(s), vol, vol, 0, 0, rate);
+    }
+    public void playSound(Sound s) {
+        playSound(s, 0.9f, 1);
     }
 
     /**

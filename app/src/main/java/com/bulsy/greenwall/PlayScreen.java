@@ -53,7 +53,7 @@ public class PlayScreen extends Screen {
     static final int INIT_SELECTABLE_SPEED = 150;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
-    static final int MIN_ROUND_PASS_PCT = 50;  // pct splatted on wall that we require to advance level
+    static final int MIN_ROUND_PASS_PCT = 75;  // pct splatted on wall that we require to advance level
     static final String LINE_SPLIT_MARKER = "#";
     static final int TS_NORMAL = 45; // normal text size
     static final int TS_BIG = 60; // large text size
@@ -67,7 +67,7 @@ public class PlayScreen extends Screen {
     private volatile Fruit selectedFruit = null;
     private int maxShownSelectableFruit;
     private float touchvx, touchvy;  // touchpoint's velocity
-    private long touchtime = 0, frtime = 0;
+    private long frtime = 0;
     private Rect scaledDst = new Rect();
     private MainActivity act = null;
     private int selectable_speed;
@@ -109,8 +109,8 @@ public class PlayScreen extends Screen {
     private final int LEVEL_BANANA = 3;
     private final int LEVEL_MILK = 4;
     private final int LEVEL_KETCHUP = 6;
-    private final int LEVEL_ICECREAM = 7;
-    private final int LEVEL_NUT = 9;
+    private final int LEVEL_ICECREAM = 8;
+    private final int LEVEL_NUT = 10;
 
     private List<Combo> combos = new ArrayList<Combo>();  // possible combos
     private List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
@@ -145,7 +145,7 @@ public class PlayScreen extends Screen {
             inputStream.close();
 
             // banana
-            banbtm = new Bitmap[4];
+            banbtm = new Bitmap[5];
             inputStream = assetManager.open("ban1.png");
             banbtm[0] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
@@ -155,8 +155,11 @@ public class PlayScreen extends Screen {
             inputStream = assetManager.open("ban3.png");
             banbtm[2] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
-            inputStream = assetManager.open("pearsplat1.png");
+            inputStream = assetManager.open("ban4.png");
             banbtm[3] = BitmapFactory.decodeStream(inputStream);
+            inputStream.close();
+            inputStream = assetManager.open("bansplat.png");
+            banbtm[4] = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
 
             // orange
@@ -238,13 +241,13 @@ public class PlayScreen extends Screen {
             inputStream.close();
 
             // initialize types of fruit (seeds), point values
-            pearseed = new Seed(pearbtm, 10);
-            orangeseed = new Seed(orangebtm, 15);
-            banseed = new Seed(banbtm, 20);
-            milkseed = new Seed(milkbtm, 25);
-            icseed = new Seed(icbtm, 30);
-            nutseed = new Seed(nutbtm, 40);
-            ketseed = new Seed(ketbtm, 0);
+            pearseed = new Seed(pearbtm, 10, Sound.WETSPLAT);
+            orangeseed = new Seed(orangebtm, 15, Sound.WETSPLAT);
+            banseed = new Seed(banbtm, 20, Sound.WETSPLAT);
+            milkseed = new Seed(milkbtm, 25, Sound.SPLAT);
+            icseed = new Seed(icbtm, 30, Sound.SPLAT);
+            nutseed = new Seed(nutbtm, 40, Sound.SPLAT);
+            ketseed = new Seed(ketbtm, 0, Sound.KSPLAT);
 
             // init combos
             ArrayList<Seed> sl = new ArrayList<Seed>();
@@ -312,7 +315,6 @@ public class PlayScreen extends Screen {
         try {
             BufferedReader f = new BufferedReader(new FileReader(act.getFilesDir() + HISCORE_FILE));
             hiscore = Integer.parseInt(f.readLine());
-            ;
             f.close();
         } catch (Exception e) {
             Log.d(MainActivity.LOG_ID, "ReadHiScore", e);
@@ -367,11 +369,14 @@ public class PlayScreen extends Screen {
         if (round >= LEVEL_NUT)
             addFruitSeed(seedsQueued, nutseed, round / 3);
 
-        if (round >= LEVEL_KETCHUP)
-            addFruitSeed(seedsQueued, ketseed, round / 2);
+        int nket=0;
+        if (round >= LEVEL_KETCHUP) {
+            nket = round / 2;
+            addFruitSeed(seedsQueued, ketseed, nket);
+        }
 
         nWallSplats = 0;
-        nTotFruit = seedsQueued.size();
+        nTotFruit = seedsQueued.size() - nket; // don't count ketchups toward throwable fruit total
 
         gamestate = State.RUNNING;
     }
@@ -565,7 +570,7 @@ public class PlayScreen extends Screen {
                     fruitsSplatted.add(f);
                     nWallSplats++;
                     score += f.seed.points;
-                    //act.getSound splat
+                    act.playSound(f.getSplatSound());
 
                     // check combo
 //                    synchronized (fruitsSplatted) {
@@ -592,13 +597,15 @@ public class PlayScreen extends Screen {
                                 fruitsSplatted.remove(spf);
                             }
 
-                            // combo sound play
-                            effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter);
-                            ComboHit ch = new ComboHit();
 
                             // display combo hit message "somewhere next to" combo hit
+                            effpt = renderFromZ(f.x, f.y, f.z, wallxcenter, wallycenter);
+                            ComboHit ch = new ComboHit();
                             ch.x = effpt.x + (float) Math.random() * 100 - 50;
                             ch.y = effpt.y + (float) Math.random() * 100 - 80;
+
+                            // play sound
+                            act.playSound(Sound.COMBO);
 
                             // ensure combo display is fully onscreen
                             p.getTextBounds(c.name, 0, c.name.length(), scaledDst);
@@ -687,7 +694,7 @@ public class PlayScreen extends Screen {
             synchronized (fruitsSelectable) {
                 for (Fruit f : fruitsSelectable) {
                     // selectable fruit is on z=0, so we can just display normally:
-                    c.drawBitmap(f.seed.btm[0], f.x - f.seed.halfWidth, f.y - f.seed.halfHeight, p);
+                    c.drawBitmap(f.getBitmap(), f.x - f.seed.halfWidth, f.y - f.seed.halfHeight, p);
                 }
             }
 
@@ -719,9 +726,8 @@ public class PlayScreen extends Screen {
                 hiscore = score;
             c.drawText("HIGH: " + hiscore, 10, 120, p);
 
-            // game programming!  pure, constant state manipulation!
-            // this is like fingernails on a chalkboard for functional programming crowd
-
+            // game programming!  pure and constant state manipulation!
+            // this is like fingernails on a chalkboard for the functional programming crowd
             if (gamestate == State.ROUNDSUMMARY
                     || gamestate == State.STARTGAME
                     || gamestate == State.PLAYERDIED
@@ -732,13 +738,11 @@ public class PlayScreen extends Screen {
 
                     c.drawText(splatPct + "% sPLAttaGe!", width / 4, height / 3, p);
                     if (gamestate == State.ROUNDSUMMARY) {
-                        if (splatPct < 50)
-                            c.drawText("Ooops...try again.", width / 4, (int) (height / 2.5), p);
-                        else if (splatPct < 60)
+                        if (splatPct < 80)
                             c.drawText("Not too bad.", width / 4, (int) (height / 2.5), p);
-                        else if (splatPct < 70)
+                        else if (splatPct < 85)
                             c.drawText("Nice!", width * 3 / 4, (int) (height / 2.5), p);
-                        else if (splatPct < 90) {
+                        else if (splatPct <= 95) {
                             c.drawText("cRuDe!", width / 3, (int) (height / 2.5), p);
                         } else if (round > 8) {
                             c.drawText("Dude, really?!", width / 4, (int) (height / 2.5), p);
@@ -746,12 +750,14 @@ public class PlayScreen extends Screen {
                         } else {
                             c.drawText("eEEeEeeEh!! sPAzMiC!", width / 4, (int) (height / 2.5), p);
                         }
-                    } else if (gamestate == State.PLAYERDIED)
-                        c.drawText("...Ooops.", width / 3, (int) (height / 2), p);
+                    } else if (gamestate == State.PLAYERDIED
+                            || gamestate == State.GAMEOVER)
+                        c.drawText("...Ooops.", width / 3, (int) (height / 2.5), p);
                 }
 
-                if (gamestate != State.PLAYERDIED) {
-                    String msg = levelmsgMap.get(Integer.valueOf(round));  // this is horrible, on many levels.
+                if (gamestate != State.PLAYERDIED
+                        && gamestate != State.GAMEOVER) {
+                    String msg = levelmsgMap.get(Integer.valueOf(round));
                     if (msg != null) {
                         if (msg.contains(LINE_SPLIT_MARKER)) {
                             drawCenteredText(c, msg.substring(0, msg.indexOf(LINE_SPLIT_MARKER)), height * 3 / 5, p, 0);
@@ -803,9 +809,9 @@ public class PlayScreen extends Screen {
     VelocityTracker mVelocityTracker = null;
     @Override
     public boolean onTouch(MotionEvent e) {
-        long newtime = System.nanoTime();
-        float elapsedsecs = (float)(newtime - touchtime) / ONESEC_NANOS;
-        touchtime = newtime;
+//        long newtime = System.nanoTime();
+//        float elapsedsecs = (float)(newtime - touchtime) / ONESEC_NANOS;
+//        touchtime = newtime;
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 if (gamestate == State.ROUNDSUMMARY
@@ -826,8 +832,8 @@ public class PlayScreen extends Screen {
                             if (f.hasCollision(e.getX(), e.getY()))
                                 if (f.seed == ketseed) {
                                     // user popped ketchup
-                                    itf.remove();
-                                    fruitsSplatted.add(f);  // so it displays as splatted
+                                    act.playSound(Sound.KSPLAT);
+                                    f.burst();
                                     loseLife();
                                     return false; // no followup msgs
                                 } else {
@@ -859,14 +865,6 @@ public class PlayScreen extends Screen {
                 // and getYVelocity() to retrieve the velocity for each pointer ID.
                 mVelocityTracker.computeCurrentVelocity(1000);
                 int pointerId = e.getPointerId(e.getActionIndex());
-                // Log velocity of pixels per second
-                // Best practice to use VelocityTrackerCompat where possible.
-//                Log.d(MainActivity.LOG_ID, "X velocity: me:" + touchvx+" VT:"+
-//                        VelocityTrackerCompat.getXVelocity(mVelocityTracker,
-//                                pointerId));
-//                Log.d(MainActivity.LOG_ID, "Y velocity: me:" + touchvy+" VT:"+
-//                        VelocityTrackerCompat.getYVelocity(mVelocityTracker,
-//                                pointerId));
                 touchvx = VelocityTrackerCompat.getXVelocity(mVelocityTracker,
                         pointerId);
                 touchvy = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
@@ -888,6 +886,8 @@ public class PlayScreen extends Screen {
                             fruitsFlying.add(f);
                             fruitsSelectable.remove(f);
                         }
+                        float hardness = f.vz/(f.vz - f.vy);  // vy: up is negative
+                        act.playSound(Sound.THROW, hardness * .7f, hardness * 2);
                     }
                 }
                 mVelocityTracker.recycle();
@@ -902,6 +902,7 @@ public class PlayScreen extends Screen {
      */
     private class Seed {
         int points; // points this type of Fruit is worth, if it hits the wall.
+        Sound splatsound;
         Bitmap btm[]; // bitmap for animating this type of throwable
         float width=0; // width onscreen
         float height=0;  // height onscreen
@@ -909,13 +910,14 @@ public class PlayScreen extends Screen {
         float halfHeight = 0;
         final float HALF_DIVISOR = 1.9f;  // we fudge "half" a little, results are more comfortable.
 
-        public Seed(Bitmap bitmaps[], int points) {
+        public Seed(Bitmap bitmaps[], int points, Sound splatsound) {
             this.btm = bitmaps;
             this.width = bitmaps[0].getWidth();
             this.height = bitmaps[0].getHeight();
             this.halfWidth = width/HALF_DIVISOR;
             this.halfHeight = height/HALF_DIVISOR;
             this.points = points;
+            this.splatsound = splatsound;
         }
     }
 
@@ -943,6 +945,7 @@ public class PlayScreen extends Screen {
         Seed seed=null; // the core information about this throwable fruit
 
         Rect bounds = new Rect();
+        boolean isBurst = false;
 
         /**
          * initialize a fruit, at initial location.
@@ -959,6 +962,7 @@ public class PlayScreen extends Screen {
             this.y = inity;
             this.z = initz;
             this.seed = s;
+            isBurst = false;
         }
 
         /**
@@ -990,6 +994,16 @@ public class PlayScreen extends Screen {
             vz = (-tvy * yzfact)/2;
         }
 
+        public void burst() {
+            isBurst = true;
+        }
+
+        public Bitmap getBitmap() {
+            if (isBurst)
+                return getSplatBitmap();
+            else
+                return seed.btm[0];
+        }
         public Bitmap getBitmap(long t) {
             // cycle through the images, over half a sec
             int nframes = seed.btm.length - 1;
@@ -1000,5 +1014,7 @@ public class PlayScreen extends Screen {
         public Bitmap getSplatBitmap() {
             return seed.btm[seed.btm.length - 1];
         }
+
+        public Sound getSplatSound() { return seed.splatsound;}
     }
 }

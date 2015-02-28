@@ -2,11 +2,8 @@ green wall notes
 ----------------
 
 next up:
- - add sound
- - add proper banana
  - change combo text to btm, with text and image, alpha bg
  - starter icon
- - add splat to title screen
  - add spaz to combo?  spaz is 3x multiplier to combo and makes combo spaz harder?
   min number of combos per round -> per 10 levs, combo reqt.  after lev 20, reqt is in a scrqqn quadrant
   targets?
@@ -16,6 +13,14 @@ next up:
 
 log---
 ------
+feb 28
+ - add sound
+ - add proper banana
+ - add splat to title screen
+
+feb 26
+added ketchups
+
 feb 25
 handled orientatsion; take full screen.  what opts do i set so we don't die?
 cleaned a little combo text display
