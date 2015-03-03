@@ -6,6 +6,11 @@ a weirdly addictive arcade game, where you fling fruit against a big green wall.
 
 
 next up:
+ - add level to highscore
+ - something protets from ketchup?
+ - shrink orange, it hides ketchup, that's kinda wrong haha
+ - give extra lives if you do something?  special symbol shows on screen, if you hit it with a combo, you get another life?
+ - have fruits comeout in more than one row.
  - bug showing splatted fruit!?  where are we leaving a burst flag on??
  - change combo text to btm, with text and image, alpha bg
  - starter icon
