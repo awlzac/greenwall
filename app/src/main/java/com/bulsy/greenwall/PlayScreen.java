@@ -273,7 +273,7 @@ public class PlayScreen extends Screen {
             sl.add(nutseed);
             combos.add(new Combo(sl, "bAnaNA sPLiT!!", 150));
 
-            levelmsgMap.put(Integer.valueOf(1), "tImE to SPlaT!");
+            levelmsgMap.put(Integer.valueOf(1), "tImE to SPlaT!#fling the fruit at the wall!");
             levelmsgMap.put(Integer.valueOf(LEVEL_ORANGE), "Orange ya glad there's more#fruit to throw?");
             levelmsgMap.put(Integer.valueOf(LEVEL_BANANA), "Splat pear+orange+banana#in the same place...fruit salad!");
             levelmsgMap.put(Integer.valueOf(LEVEL_MILK), "Some milk to wash all that#fruit down?");
@@ -712,15 +712,16 @@ public class PlayScreen extends Screen {
 //            c.drawText("fps: "+fps
 //                        +"x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
 //                    "\tflying:" + fruitsFlying.size()
-//                            + " ffz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).z : -1)
+//                            + "\nff vz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1)
+//                            + "\nff vy:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vy : -1)
 //                            + " ffvz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1),
 //                    , 0, 200, p);
             p.setColor(Color.WHITE);
             p.setTextSize(TS_NORMAL);
             p.setTypeface(act.getGameFont());
             p.setFakeBoldText(true);
-            c.drawText("ROUND " + round, width - 300, 60, p);
-            c.drawText("LIVES " + lives, width - 300, 120, p);
+            c.drawText("ROUND: " + round, width - 270, 60, p);
+            c.drawText("LIVES: " + lives, width - 270, 120, p);
             c.drawText("SCORE: " + score, 10, 60, p);
             if (score > hiscore)
                 hiscore = score;
@@ -736,19 +737,19 @@ public class PlayScreen extends Screen {
                     // round ended, by completion or player death, display stats
                     int splatPct = (int) (nWallSplats * 100 / nTotFruit);
 
-                    c.drawText(splatPct + "% sPLAttaGe!", width / 4, height / 3, p);
+                    drawCenteredText(c, splatPct + "% sPLAttaGe! ("+MIN_ROUND_PASS_PCT+"% required)", height / 3, p, 0);
                     if (gamestate == State.ROUNDSUMMARY) {
                         if (splatPct < 80)
-                            c.drawText("Not too bad.", width / 4, (int) (height / 2.5), p);
+                            drawCenteredText(c, "not too bad.", (int) (height / 2.5), p, 0);
                         else if (splatPct < 85)
-                            c.drawText("Nice!", width * 3 / 4, (int) (height / 2.5), p);
+                            drawCenteredText(c, "nice!", (int) (height / 2.5), p, 0);
                         else if (splatPct <= 95) {
-                            c.drawText("cRuDe!", width / 3, (int) (height / 2.5), p);
-                        } else if (round > 8) {
+                            drawCenteredText(c, "cRudE!", (int) (height / 2.5), p, 0);
+                        } else if (round > 10) {
                             c.drawText("Dude, really?!", width / 4, (int) (height / 2.5), p);
                             c.drawText("Awesome.", width / 3, (int) (height / 2.2), p);
                         } else {
-                            c.drawText("eEEeEeeEh!! sPAzMiC!", width / 4, (int) (height / 2.5), p);
+                            drawCenteredText(c, "eEEeEeeEh!! sPAzMiC!", (int) (height / 2.5), p, 0);
                         }
                     } else if (gamestate == State.PLAYERDIED
                             || gamestate == State.GAMEOVER)
@@ -886,8 +887,17 @@ public class PlayScreen extends Screen {
                             fruitsFlying.add(f);
                             fruitsSelectable.remove(f);
                         }
-                        float hardness = f.vz/(f.vz - f.vy);  // vy: up is negative
-                        act.playSound(Sound.THROW, hardness * .7f, hardness * 2);
+
+                        // attempting to adjust sound for how hard fruit was thrown horizontally.
+                        // hardness == 0 --> not thrown with any force
+                        // hardness == 1 --> thrown as hard as possible
+                        // assume that 5000 is really fast; z vel should sound "harder" than y-vel
+                        float hardness = (f.vz - f.vy/2)/5000;  // vy: up is negative.
+                        if (hardness >= 1f)
+                            hardness = 1.0f;
+                        if (hardness < .3f)
+                            hardness = .3f;
+                        act.playSound(Sound.THROW, hardness * .9f, hardness * 2);
                     }
                 }
                 mVelocityTracker.recycle();

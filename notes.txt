@@ -1,14 +1,19 @@
 green wall notes
 ----------------
 
+blurb:
+a weirdly addictive arcade game, where you fling fruit against a big green wall.
+
+
 next up:
+ - bug showing splatted fruit!?  where are we leaving a burst flag on??
  - change combo text to btm, with text and image, alpha bg
  - starter icon
  - add spaz to combo?  spaz is 3x multiplier to combo and makes combo spaz harder?
   min number of combos per round -> per 10 levs, combo reqt.  after lev 20, reqt is in a scrqqn quadrant
-  targets?
+  targets?  halo looking glow ring, 2x points for anything in target, target had 30% min
   catch phone exit and go bac to title screen.  are you sure?
-
+ make fruit randomly twitch?
 
 
 log---
