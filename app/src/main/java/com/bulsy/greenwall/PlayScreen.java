@@ -53,9 +53,9 @@ public class PlayScreen extends Screen {
     static final int INIT_SELECTABLE_SPEED = 150;  // speed of selectable fruit at bottom of screen
     static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
-    static final int MIN_ROUND_PASS_PCT = 75;  // pct splatted on wall that we require to advance level
+    int minRoundPassPct;  // pct splatted on wall that we require to advance level
     static final String LINE_SPLIT_MARKER = "#";
-    static final int TS_NORMAL = 45; // normal text size
+    static final int TS_NORMAL = 42; // normal text size
     static final int TS_BIG = 60; // large text size
 
     private Paint p;
@@ -101,7 +101,7 @@ public class PlayScreen extends Screen {
     private int round;
     private int score;
     private int lives;
-    private int hiscore;
+    private int hiscore=0, hilev=1;
     private static final String HISCORE_FILE = "gwhs.dat";
     private static final int START_NUMLIVES = 3;
     private Map<Integer, String> levelmsgMap = new HashMap<Integer, String>();
@@ -276,10 +276,11 @@ public class PlayScreen extends Screen {
             levelmsgMap.put(Integer.valueOf(1), "tImE to SPlaT!#fling the fruit at the wall!");
             levelmsgMap.put(Integer.valueOf(LEVEL_ORANGE), "Orange ya glad there's more#fruit to throw?");
             levelmsgMap.put(Integer.valueOf(LEVEL_BANANA), "Splat pear+orange+banana#in the same place...fruit salad!");
-            levelmsgMap.put(Integer.valueOf(LEVEL_MILK), "Some milk to wash all that#fruit down?");
-            levelmsgMap.put(Integer.valueOf(LEVEL_KETCHUP), "Don't pop the ketchup packets!#Nobody likes that.");
+            levelmsgMap.put(Integer.valueOf(LEVEL_MILK), "how about Some milk to wash#all that fruit down?");
+            levelmsgMap.put(Integer.valueOf(LEVEL_KETCHUP), "Don't pop the keTChup packets!#Nobody likes that.");
             levelmsgMap.put(Integer.valueOf(LEVEL_ICECREAM), "time for ICE CREAM!#And more combinations!");
-            levelmsgMap.put(Integer.valueOf(LEVEL_NUT), "Mmm...chocolate sauce!#Hit those combos!");
+            levelmsgMap.put(Integer.valueOf(LEVEL_NUT), "Mmm...chocolate sauce!#Hit those COMBOS!");
+            levelmsgMap.put(Integer.valueOf(20), "getting a little crazy now, yes?");
 
             p.setTypeface(act.getGameFont());
             round = 1;
@@ -315,6 +316,7 @@ public class PlayScreen extends Screen {
         try {
             BufferedReader f = new BufferedReader(new FileReader(act.getFilesDir() + HISCORE_FILE));
             hiscore = Integer.parseInt(f.readLine());
+            hilev = Integer.parseInt(f.readLine());
             f.close();
         } catch (Exception e) {
             Log.d(MainActivity.LOG_ID, "ReadHiScore", e);
@@ -353,6 +355,14 @@ public class PlayScreen extends Screen {
         else
             maxShownSelectableFruit = 5;
 
+        // how much do we need to get on the wall, to pass?
+        if (round == 1)
+            minRoundPassPct = 60;
+        else if (round < 4)
+            minRoundPassPct = 70;
+        else
+            minRoundPassPct = 75;
+
         clearLists();
 
         // set up fruits to throw
@@ -387,10 +397,12 @@ public class PlayScreen extends Screen {
     private void loseLife() {
         lives--;
         if (lives == 0) {
+            // game over!  wrap things up and write hi score file
             gamestate = State.GAMEOVER;
             try {
                 BufferedWriter f = new BufferedWriter(new FileWriter(act.getFilesDir() + HISCORE_FILE));
-                f.write(Integer.toString(hiscore));
+                f.write(Integer.toString(hiscore)+"\n");
+                f.write(Integer.toString(hilev)+"\n");
                 f.close();
             } catch (Exception e) { // if we can't write the hi score file...oh well.
                 Log.d(MainActivity.LOG_ID, "WriteHiScore", e);
@@ -478,6 +490,8 @@ public class PlayScreen extends Screen {
             ch.y -= COMBOHIT_SPEED * elapsedsecs;
             float chtime = frtime - ch.hitTime;
             ch.alpha = (int) (255 * (1.0f - chtime / COMBOHIT_DISPLAYTIME));
+            if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME / 2)
+                fps = 9;
             if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME)
                 hcit.remove();
         }
@@ -488,10 +502,6 @@ public class PlayScreen extends Screen {
             initRound();
             return;
         }
-//        else if (gamestate == State.ROUNDSUMMARY
-//                || gamestate == State.PLAYERDIED
-//                || gamestate == State.GAMEOVER)
-//            return;  // we're in pause, there's nothing else to update
 
         if (width == 0) {
             // set variables that rely on screen size
@@ -523,7 +533,8 @@ public class PlayScreen extends Screen {
         if (gamestate == State.RUNNING
                 && fruitsSelectable.size() < maxShownSelectableFruit
                 && seedsQueued.size() > 0
-                && Math.random() > .95) { // "every now and then" make a fruit available
+                && Math.random() > .95) {
+            // "every now and then" make a fruit available
             Fruit newf = null;
             if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
                 newf = fruitsRecycled.get(0);
@@ -548,7 +559,7 @@ public class PlayScreen extends Screen {
                 && fruitsFlying.size() == 0
                 && seedsQueued.size() == 0) {
             // round is complete
-            if (nWallSplats * 100 / nTotFruit >= MIN_ROUND_PASS_PCT) {
+            if (nWallSplats * 100 / nTotFruit >= minRoundPassPct) {
                 round++;
                 gamestate = State.ROUNDSUMMARY;
             } else
@@ -720,12 +731,14 @@ public class PlayScreen extends Screen {
             p.setTextSize(TS_NORMAL);
             p.setTypeface(act.getGameFont());
             p.setFakeBoldText(true);
-            c.drawText("ROUND: " + round, width - 270, 60, p);
-            c.drawText("LIVES: " + lives, width - 270, 120, p);
+            c.drawText("ROUND: " + round, width - 260, 60, p);
+            c.drawText("LIVES: " + lives, width - 260, 120, p);
             c.drawText("SCORE: " + score, 10, 60, p);
-            if (score > hiscore)
+            if (score > hiscore) {
                 hiscore = score;
-            c.drawText("HIGH: " + hiscore, 10, 120, p);
+                hilev = round;
+            }
+            c.drawText("HIGH: " + hiscore +" (rn "+hilev+")", 10, 120, p);
 
             // game programming!  pure and constant state manipulation!
             // this is like fingernails on a chalkboard for the functional programming crowd
@@ -737,7 +750,7 @@ public class PlayScreen extends Screen {
                     // round ended, by completion or player death, display stats
                     int splatPct = (int) (nWallSplats * 100 / nTotFruit);
 
-                    drawCenteredText(c, splatPct + "% sPLAttaGe! ("+MIN_ROUND_PASS_PCT+"% required)", height / 3, p, 0);
+                    drawCenteredText(c, splatPct + "% sPLAttaGe! ("+ minRoundPassPct +"% required)", height / 3, p, 0);
                     if (gamestate == State.ROUNDSUMMARY) {
                         if (splatPct < 80)
                             drawCenteredText(c, "not too bad.", (int) (height / 2.5), p, 0);

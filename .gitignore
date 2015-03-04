@@ -7,3 +7,5 @@
 *.apk
 /app/build
 /greenwallpics
+*.iml
+
