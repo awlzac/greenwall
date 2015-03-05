@@ -9,6 +9,7 @@ import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.support.v4.view.VelocityTrackerCompat;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
@@ -66,7 +67,6 @@ public class PlayScreen extends Screen {
     private List<Fruit> fruitsRecycled = new LinkedList<Fruit>(); // fruit objects no longer in use
     private volatile Fruit selectedFruit = null;
     private int maxShownSelectableFruit;
-    private float touchvx, touchvy;  // touchpoint's velocity
     private long frtime = 0;
     private Rect scaledDst = new Rect();
     private MainActivity act = null;
@@ -490,8 +490,8 @@ public class PlayScreen extends Screen {
             ch.y -= COMBOHIT_SPEED * elapsedsecs;
             float chtime = frtime - ch.hitTime;
             ch.alpha = (int) (255 * (1.0f - chtime / COMBOHIT_DISPLAYTIME));
-            if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME / 2)
-                fps = 9;
+            if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME / 3)
+                fps = 0; // excuse to put a breakpoint here
             if (frtime - ch.hitTime > COMBOHIT_DISPLAYTIME)
                 hcit.remove();
         }
@@ -584,7 +584,6 @@ public class PlayScreen extends Screen {
                     act.playSound(f.getSplatSound());
 
                     // check combo
-//                    synchronized (fruitsSplatted) {
                     for (Combo c : combos) {
                         neededSeeds.clear();
                         neededSeeds.addAll(c.seeds);
@@ -629,8 +628,6 @@ public class PlayScreen extends Screen {
                             hitCombos.put(c, ch);
                         }
                     }
-//                    }
-
                 } else if (f.y > inity
                         && f.y < inity + f.vy * elapsedsecs
                         && f.z > WALL_Z / 2) {
@@ -721,6 +718,7 @@ public class PlayScreen extends Screen {
             }
 
 //            c.drawText("fps: "+fps
+//                    +" w:"+width + " h:" +height
 //                        +"x:"+touchx+" y:"+touchy+" tvx:"+(int)touchvx+"\ttvy:"+(int)touchvy+
 //                    "\tflying:" + fruitsFlying.size()
 //                            + "\nff vz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1)
@@ -821,11 +819,9 @@ public class PlayScreen extends Screen {
     }
 
     VelocityTracker mVelocityTracker = null;
+    DisplayMetrics dm = new DisplayMetrics();
     @Override
     public boolean onTouch(MotionEvent e) {
-//        long newtime = System.nanoTime();
-//        float elapsedsecs = (float)(newtime - touchtime) / ONESEC_NANOS;
-//        touchtime = newtime;
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 if (gamestate == State.ROUNDSUMMARY
@@ -874,27 +870,30 @@ public class PlayScreen extends Screen {
                     selectedFruit.y = e.getY();
                 }
                 mVelocityTracker.addMovement(e);
-                // When you want to determine the velocity, call
-                // computeCurrentVelocity(). Then call getXVelocity()
-                // and getYVelocity() to retrieve the velocity for each pointer ID.
-                mVelocityTracker.computeCurrentVelocity(1000);
-                int pointerId = e.getPointerId(e.getActionIndex());
-                touchvx = VelocityTrackerCompat.getXVelocity(mVelocityTracker,
-                        pointerId);
-                touchvy = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
-                        pointerId);
                 break;
 
             case MotionEvent.ACTION_UP:
-                float tvx = touchvx;
-                float tvy = touchvy;
-                touchvx = 0;
-                touchvy = 0;
                 if (selectedFruit != null) {
                     Fruit f = selectedFruit;
                     selectedFruit = null;
+
+                    mVelocityTracker.computeCurrentVelocity(1000);
+                    int pointerId = e.getPointerId(e.getActionIndex());
+                    float tvx = VelocityTrackerCompat.getXVelocity(mVelocityTracker,
+                            pointerId);
+                    float tvy = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
+                            pointerId);
+
                     if (-tvy > 0) {
                         // there is upward motion at release-- user threw fruit
+
+                        // attempt to scale for device size and display density
+                        act.getWindowManager().getDefaultDisplay().getMetrics(dm);
+                        int dpi = dm.densityDpi;
+                        float speedfactor = dpi / 300f;  // physics constants were tuned on a device with appx this density, so if current density s different, we should scale
+                        tvx = tvx / speedfactor;
+                        tvy = tvy / speedfactor;
+
                         f.throwFruit(tvx, tvy);
                         synchronized (fruitsFlying) {
                             fruitsFlying.add(f);

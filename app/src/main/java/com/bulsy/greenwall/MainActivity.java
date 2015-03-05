@@ -53,10 +53,8 @@ public class MainActivity extends ActionBarActivity {
             playScreen = new PlayScreen(this);
 
             mainView = new FullScreenView(this);
-            //mainView.setRenderer(new SimpleRenderer());
             setContentView(mainView);
 
-//        gamefont = Typeface.createFromAsset(getAssets(), "smartiecaps.ttf");
             gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
 
             setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -178,7 +176,6 @@ public class MainActivity extends ActionBarActivity {
 
         @Override
         public void run() {
-
             try {
                 while(isRendering){
                     while(!holder.getSurface().isValid()) {
@@ -200,7 +197,6 @@ public class MainActivity extends ActionBarActivity {
                 Log.d(LOG_ID, "View", e);
                 e.printStackTrace();
             }
-
         }
 
         public void pause() {
