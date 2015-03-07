@@ -70,6 +70,10 @@ public class MainActivity extends ActionBarActivity {
             soundMap.put(Sound.KSPLAT, soundpool.load(descriptor, 1));
             descriptor = getAssets().openFd("whoosh.mp3");
             soundMap.put(Sound.THROW, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("spaz.mp3");
+            soundMap.put(Sound.PASSLEVEL, soundpool.load(descriptor, 1));
+            descriptor = getAssets().openFd("aww.mp3");
+            soundMap.put(Sound.DEATH, soundpool.load(descriptor, 1));
         } catch (Exception e) {
             // panic, crash, fine -- but let me know what happened.
             Log.d(LOG_ID, "onCreate", e);

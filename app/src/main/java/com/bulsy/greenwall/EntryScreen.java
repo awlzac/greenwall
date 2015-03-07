@@ -18,7 +18,7 @@ import java.io.InputStream;
  */
 public class EntryScreen extends Screen {
     MainActivity act;
-    Paint p = new Paint(Color.GREEN);
+    Paint p = new Paint();
     Bitmap screenbtm, playbtm, exitbtm;
     Rect scaledDst = new Rect(); // generic rect for scaling
     Rect playBtnBounds = null;
@@ -72,6 +72,17 @@ public class EntryScreen extends Screen {
 
         c.drawBitmap(playbtm, null, playBtnBounds, p);
         c.drawBitmap(exitbtm, null, exitBtnBounds, p);
+
+        // version/copyright line
+        p.setColor(Color.rgb(0,70,0));  // dark greenish
+        p.setTextSize(35);
+        p.setTypeface(act.getGameFont());
+        String msg = "v"+BuildConfig.VERSION_NAME;
+        int xTextEnd = (int)(width*.99f);
+        c.drawText(msg, xTextEnd-p.measureText(msg), height - 80, p);
+        int w1 = scaledDst.width();
+        msg = "(c) 2015 FraNk W. MotLeY";
+        c.drawText(msg, xTextEnd-p.measureText(msg), height - 40, p);
     }
 
     @Override

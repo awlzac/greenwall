@@ -50,8 +50,9 @@ public class PlayScreen extends Screen {
     static final Rect wallbounds_at_screen_z = new Rect();  // wall bounds at screen z
     static final float WALLZFACT = 1.0f - (ZSTRETCH / (WALL_Z + ZSTRETCH));
     static final long ONESEC_NANOS = 1000000000L;
-    static final int ACC_GRAVITY = 5000;
-    static final int INIT_SELECTABLE_SPEED = 150;  // speed of selectable fruit at bottom of screen
+    static final int ACC_GRAVITY = 6000;
+    static final int INIT_SELECTABLE_SPEED = 150;  // initial speed of selectable fruit at bottom of screen
+    static final long MIN_SPAWN_INTERVAL_NANOS = 100000000L;
     static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     int minRoundPassPct;  // pct splatted on wall that we require to advance level
@@ -68,6 +69,7 @@ public class PlayScreen extends Screen {
     private volatile Fruit selectedFruit = null;
     private int maxShownSelectableFruit;
     private long frtime = 0;
+    private long possspawntime = 0;
     private Rect scaledDst = new Rect();
     private MainActivity act = null;
     private int selectable_speed;
@@ -396,6 +398,7 @@ public class PlayScreen extends Screen {
      */
     private void loseLife() {
         lives--;
+        act.playSound(Sound.DEATH);
         if (lives == 0) {
             // game over!  wrap things up and write hi score file
             gamestate = State.GAMEOVER;
@@ -533,33 +536,39 @@ public class PlayScreen extends Screen {
         if (gamestate == State.RUNNING
                 && fruitsSelectable.size() < maxShownSelectableFruit
                 && seedsQueued.size() > 0
-                && Math.random() > .95) {
+                && frtime > possspawntime + MIN_SPAWN_INTERVAL_NANOS) {
+            possspawntime = frtime;
             // "every now and then" make a fruit available
-            Fruit newf = null;
-            if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
-                newf = fruitsRecycled.get(0);
-                fruitsRecycled.remove(0);
-            } else { // create if needed
-                newf = new Fruit();
-            }
-            int initx = 0;
-            int speed = selectable_speed;
-            if (Math.random() > .5) {
-                initx = width;
-                speed = -speed;
-            }
+            if (Math.random() > .6) {
+                Fruit newf = null;
+                if (fruitsRecycled.size() > 0) { // recycle a fruit if we can
+                    newf = fruitsRecycled.get(0);
+                    fruitsRecycled.remove(0);
+                } else { // create if needed
+                    newf = new Fruit();
+                }
 
-            // choose fruit
-            Seed s = seedsQueued.get(0);
-            seedsQueued.remove(0);
-            newf.init(s, initx, inity, 0, speed);
-            fruitsSelectable.add(newf);
+                // choose fruit
+                Seed s = seedsQueued.get(0);
+                seedsQueued.remove(0);
+
+                int initx = (int)-s.halfWidth;
+                int speed = selectable_speed;
+                if (Math.random() > .5) {
+                    initx = (int)(width + s.halfWidth);
+                    speed = -speed;
+                }
+
+                newf.init(s, initx, inity, 0, speed);
+                fruitsSelectable.add(newf);
+            }
         } else if (gamestate == State.RUNNING
                 && fruitsSelectable.size() == 0
                 && fruitsFlying.size() == 0
                 && seedsQueued.size() == 0) {
             // round is complete
             if (nWallSplats * 100 / nTotFruit >= minRoundPassPct) {
+                act.playSound(Sound.PASSLEVEL);
                 round++;
                 gamestate = State.ROUNDSUMMARY;
             } else
@@ -709,11 +718,10 @@ public class PlayScreen extends Screen {
             // draw combo hits
             for (Combo combo : hitCombos.keySet()) {
                 ComboHit ch = hitCombos.get(combo);
-                p.setColor(Color.YELLOW);
-                p.setARGB(ch.alpha, 200 + (int) (Math.random() * 50), 200 + (int) (Math.random() * 50), (int) (Math.random() * 50));
-//                p.setColor((int)(Math.random() * 65536));
+                //p.setColor(Color.YELLOW);
+                p.setARGB(ch.alpha, 190 + (int) (Math.random() * 60), 190 + (int) (Math.random() * 60), (int) (Math.random() * 60));
                 p.setTypeface(act.getGameFont());
-                p.setTextSize(45);
+                p.setTextSize(TS_NORMAL);
                 c.drawText(combo.name, ch.x, ch.y, p);
             }
 
@@ -732,11 +740,12 @@ public class PlayScreen extends Screen {
             c.drawText("ROUND: " + round, width - 260, 60, p);
             c.drawText("LIVES: " + lives, width - 260, 120, p);
             c.drawText("SCORE: " + score, 10, 60, p);
-            if (score > hiscore) {
+
+            if (score >= hiscore) {
                 hiscore = score;
                 hilev = round;
             }
-            c.drawText("HIGH: " + hiscore +" (rn "+hilev+")", 10, 120, p);
+            c.drawText("HIGH: " + hiscore +", r "+hilev, 10, 120, p);
 
             // game programming!  pure and constant state manipulation!
             // this is like fingernails on a chalkboard for the functional programming crowd
@@ -884,15 +893,18 @@ public class PlayScreen extends Screen {
                     float tvy = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
                             pointerId);
 
-                    if (-tvy > 0) {
+                    if (-tvy > 10) {
                         // there is upward motion at release-- user threw fruit
 
-                        // attempt to scale for device size and display density
+                        // attempt to scale throw speed for device size and display density
                         act.getWindowManager().getDefaultDisplay().getMetrics(dm);
                         int dpi = dm.densityDpi;
                         float speedfactor = dpi / 300f;  // physics constants were tuned on a device with appx this density, so if current density s different, we should scale
                         tvx = tvx / speedfactor;
                         tvy = tvy / speedfactor;
+
+                        // help ease perspective problem when we release fruit away from the horizontal center of the screen
+                        tvx += (e.getX()-width/2)*3.5*speedfactor;
 
                         f.throwFruit(tvx, tvy);
                         synchronized (fruitsFlying) {
@@ -903,7 +915,7 @@ public class PlayScreen extends Screen {
                         // attempting to adjust sound for how hard fruit was thrown horizontally.
                         // hardness == 0 --> not thrown with any force
                         // hardness == 1 --> thrown as hard as possible
-                        // assume that 5000 is really fast; z vel should sound "harder" than y-vel
+                        // assume that 5000 represents "really fast"; z vel should sound "harder" than y-vel
                         float hardness = (f.vz - f.vy/2)/5000;  // vy: up is negative.
                         if (hardness >= 1f)
                             hardness = 1.0f;

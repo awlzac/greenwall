@@ -23,6 +23,11 @@ next up:
 
 log---
 ------
+mar 6
+level pass and death sounds
+redid how showing selectable fruit happens, now time and random driven, not framerate dependent
+soothed perspective problem when release away from horiz center of screen, added some x-dependednt magic
+
 mar 4
 x - shrink orange, it hides ketchup, that's kinda wrong haha
 added lev to high score
