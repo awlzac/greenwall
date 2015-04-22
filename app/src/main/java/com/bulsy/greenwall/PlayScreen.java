@@ -53,12 +53,9 @@ public class PlayScreen extends Screen {
     static final int ACC_GRAVITY = 6000;
     static final int INIT_SELECTABLE_SPEED = 150;  // initial speed of selectable fruit at bottom of screen
     static final long MIN_SPAWN_INTERVAL_NANOS = 100000000L;
-    static final int SELECTABLE_Y_PLAY = 2;  // jiggles fruit up and down
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
     int minRoundPassPct;  // pct splatted on wall that we require to advance level
     static final String LINE_SPLIT_MARKER = "#";
-    static final int TS_NORMAL = 42; // normal text size
-    static final int TS_BIG = 60; // large text size
 
     private Paint p;
     private Point effpt = new Point(); // reusable point for rendering, to avoid excessive obj creation.  brutally un-threadsafe, obviously, but we will use it in only the render thread.
@@ -80,6 +77,8 @@ public class PlayScreen extends Screen {
 
     private int width = 0;
     private int height = 0;
+    private int rhstextoffset;
+    private int statstextheight, statstextheight2;
     private int wallxcenter = 0;
     private int wallycenter = 0;
     private int inity = 0;
@@ -131,115 +130,120 @@ public class PlayScreen extends Screen {
             wallbtm = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
 
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inScreenDensity = act.getDisplayMetrics().densityDpi;
+            opts.inTargetDensity =  act.getDisplayMetrics().densityDpi;
+            opts.inDensity = (int)act.EXPECTED_DENSITY;
+
             // pear
             pearbtm = new Bitmap[4];
             inputStream = assetManager.open("pear1.png");
-            pearbtm[0] = BitmapFactory.decodeStream(inputStream);
+            pearbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("pear2.png");
-            pearbtm[1] = BitmapFactory.decodeStream(inputStream);
+            pearbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("pear3.png");
-            pearbtm[2] = BitmapFactory.decodeStream(inputStream);
+            pearbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("pearsplat1.png");
-            pearbtm[3] = BitmapFactory.decodeStream(inputStream);
+            pearbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // banana
             banbtm = new Bitmap[5];
             inputStream = assetManager.open("ban1.png");
-            banbtm[0] = BitmapFactory.decodeStream(inputStream);
+            banbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("ban2.png");
-            banbtm[1] = BitmapFactory.decodeStream(inputStream);
+            banbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("ban3.png");
-            banbtm[2] = BitmapFactory.decodeStream(inputStream);
+            banbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("ban4.png");
-            banbtm[3] = BitmapFactory.decodeStream(inputStream);
+            banbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("bansplat.png");
-            banbtm[4] = BitmapFactory.decodeStream(inputStream);
+            banbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // orange
             orangebtm = new Bitmap[4];
             inputStream = assetManager.open("orange1.png");
-            orangebtm[0] = BitmapFactory.decodeStream(inputStream);
+            orangebtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("orange2.png");
-            orangebtm[1] = BitmapFactory.decodeStream(inputStream);
+            orangebtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("orange3.png");
-            orangebtm[2] = BitmapFactory.decodeStream(inputStream);
+            orangebtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("orangesplat.png");
-            orangebtm[3] = BitmapFactory.decodeStream(inputStream);
+            orangebtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // nutella
             nutbtm = new Bitmap[5];
             inputStream = assetManager.open("nut1.png");
-            nutbtm[0] = BitmapFactory.decodeStream(inputStream);
+            nutbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("nut2.png");
-            nutbtm[1] = BitmapFactory.decodeStream(inputStream);
+            nutbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("nut3.png");
-            nutbtm[2] = BitmapFactory.decodeStream(inputStream);
+            nutbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("nut4.png");
-            nutbtm[3] = BitmapFactory.decodeStream(inputStream);
+            nutbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("nutsplat.png");
-            nutbtm[4] = BitmapFactory.decodeStream(inputStream);
+            nutbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // ice cream
             icbtm = new Bitmap[5];
             inputStream = assetManager.open("icecream1.png");
-            icbtm[0] = BitmapFactory.decodeStream(inputStream);
+            icbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("icecream2.png");
-            icbtm[1] = BitmapFactory.decodeStream(inputStream);
+            icbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("icecream3.png");
-            icbtm[2] = BitmapFactory.decodeStream(inputStream);
+            icbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("icecream4.png");
-            icbtm[3] = BitmapFactory.decodeStream(inputStream);
+            icbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("icecreamsplat.png");
-            icbtm[4] = BitmapFactory.decodeStream(inputStream);
+            icbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // milk
             milkbtm = new Bitmap[5];
             inputStream = assetManager.open("milk1.png");
-            milkbtm[0] = BitmapFactory.decodeStream(inputStream);
+            milkbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("milk2.png");
-            milkbtm[1] = BitmapFactory.decodeStream(inputStream);
+            milkbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("milk3.png");
-            milkbtm[2] = BitmapFactory.decodeStream(inputStream);
+            milkbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("milk4.png");
-            milkbtm[3] = BitmapFactory.decodeStream(inputStream);
+            milkbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("milksplat1.png");
-            milkbtm[4] = BitmapFactory.decodeStream(inputStream);
+            milkbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // ketchup
             ketbtm = new Bitmap[2];
             inputStream = assetManager.open("ketch1.png");
-            ketbtm[0] = BitmapFactory.decodeStream(inputStream);
+            ketbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
             inputStream = assetManager.open("ketchsplat.png");
-            ketbtm[1] = BitmapFactory.decodeStream(inputStream);
+            ketbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
             inputStream.close();
 
             // initialize types of fruit (seeds), point values
@@ -286,7 +290,6 @@ public class PlayScreen extends Screen {
 
             p.setTypeface(act.getGameFont());
             round = 1;
-            initRound();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -344,7 +347,7 @@ public class PlayScreen extends Screen {
      * init game for current round
      */
     private void initRound() {
-        selectable_speed = INIT_SELECTABLE_SPEED + (round * 10);
+        selectable_speed = (int)(INIT_SELECTABLE_SPEED * act.scalefactor + (round * 10));
 
         if (round < 2)
             maxShownSelectableFruit = 1;
@@ -531,6 +534,13 @@ public class PlayScreen extends Screen {
             int effr = (int) (wallbounds_at_wall_z.right + (WALLZFACT * (wallxcenter - wallbounds_at_wall_z.right)));
             int effb = (int) (wallbounds_at_wall_z.bottom + (WALLZFACT * (wallycenter - wallbounds_at_wall_z.bottom)));
             wallbounds_at_screen_z.set(effl, efft, effr, effb);
+            p.setTextSize(act.TS_NORMAL);
+            p.setTypeface(act.getGameFont());
+            String t = "SCORE: 999999";
+            rhstextoffset = (int)p.measureText(t);
+            p.getTextBounds(t, 0, t.length()-1, scaledDst);
+            statstextheight = (int)(scaledDst.height() +5);
+            statstextheight2 = statstextheight * 2;
         }
 
         if (gamestate == State.RUNNING
@@ -669,8 +679,8 @@ public class PlayScreen extends Screen {
                     if (f != selectedFruit) {
                         f.x += f.vx * elapsedsecs;
                         f.y += (inity - f.y) / 3;
-                        if (f.y - inity < 0.9)
-                            f.y += SELECTABLE_Y_PLAY;
+//                        if (f.y - inity < 0.9)
+//                            f.y += SELECTABLE_Y_PLAY;
                     }
                     if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
                         // we floated off screen
@@ -721,7 +731,7 @@ public class PlayScreen extends Screen {
                 //p.setColor(Color.YELLOW);
                 p.setARGB(ch.alpha, 190 + (int) (Math.random() * 60), 190 + (int) (Math.random() * 60), (int) (Math.random() * 60));
                 p.setTypeface(act.getGameFont());
-                p.setTextSize(TS_NORMAL);
+                p.setTextSize(act.TS_NORMAL);
                 c.drawText(combo.name, ch.x, ch.y, p);
             }
 
@@ -734,18 +744,18 @@ public class PlayScreen extends Screen {
 //                            + " ffvz:" + (fruitsFlying.size() > 0 ? fruitsFlying.get(0).vz : -1),
 //                    , 0, 200, p);
             p.setColor(Color.WHITE);
-            p.setTextSize(TS_NORMAL);
+            p.setTextSize(act.TS_NORMAL);
             p.setTypeface(act.getGameFont());
             p.setFakeBoldText(true);
-            c.drawText("ROUND: " + round, width - 260, 60, p);
-            c.drawText("LIVES: " + lives, width - 260, 120, p);
-            c.drawText("SCORE: " + score, 10, 60, p);
-
+            // drawtext draws bottom-aligned?
+            c.drawText("ROUND: " + round, width - rhstextoffset, statstextheight, p);
+            c.drawText("LIVES: " + lives, width - rhstextoffset, statstextheight2, p);
+            c.drawText("SCORE: " + score, 10, statstextheight, p);
             if (score >= hiscore) {
                 hiscore = score;
                 hilev = round;
             }
-            c.drawText("HIGH: " + hiscore +", r "+hilev, 10, 120, p);
+            c.drawText("HIGH: " + hiscore +", r"+hilev, 10, statstextheight2, p);
 
             // game programming!  pure and constant state manipulation!
             // this is like fingernails on a chalkboard for the functional programming crowd
@@ -789,7 +799,7 @@ public class PlayScreen extends Screen {
                 }
 
                 if (gamestate != State.GAMEOVER) {
-                    p.setTextSize(TS_BIG);
+                    p.setTextSize(act.TS_BIG);
                     p.setColor(Color.RED);
                     drawCenteredText(c, "Touch to continue", height * 4/5, p, -2);
                     p.setColor(Color.WHITE);
@@ -797,7 +807,7 @@ public class PlayScreen extends Screen {
                 }
             }
             if (gamestate == State.GAMEOVER) {
-                p.setTextSize(TS_BIG);
+                p.setTextSize(act.TS_BIG);
                 p.setColor(Color.RED);
                 drawCenteredText(c, "GamE oVeR!", height /2, p, -2);
                 drawCenteredText(c, "Touch to end game", height * 4 /5, p, -2);
@@ -816,15 +826,10 @@ public class PlayScreen extends Screen {
      * draw text onscreen, centered, at the inpassed height.  last param can be used to shift
      * text horizontally.
      *
-     * @param c
-     * @param msg
-     * @param height
-     * @param p
      * @param shift pixels to horizontally shift text.  normally 0
      */
     private void drawCenteredText(Canvas c, String msg, int height, Paint p, int shift) {
-        p.getTextBounds(msg, 0, msg.length() - 1, scaledDst);
-        c.drawText(msg, (width - scaledDst.width()) / 2 + shift, height, p);
+        c.drawText(msg, (width - p.measureText(msg)) / 2 + shift, height, p);
     }
 
     VelocityTracker mVelocityTracker = null;
@@ -896,15 +901,12 @@ public class PlayScreen extends Screen {
                     if (-tvy > 10) {
                         // there is upward motion at release-- user threw fruit
 
-                        // attempt to scale throw speed for device size and display density
-                        act.getWindowManager().getDefaultDisplay().getMetrics(dm);
-                        int dpi = dm.densityDpi;
-                        float speedfactor = dpi / 300f;  // physics constants were tuned on a device with appx this density, so if current density s different, we should scale
-                        tvx = tvx / speedfactor;
-                        tvy = tvy / speedfactor;
+                        // scale throw speed for display size/density
+                        tvx = tvx / act.scalefactor;
+                        tvy = tvy / act.scalefactor;
 
                         // help ease perspective problem when we release fruit away from the horizontal center of the screen
-                        tvx += (e.getX()-width/2)*3.5*speedfactor;
+                        tvx += (e.getX()-width/2)*3.5*act.scalefactor;
 
                         f.throwFruit(tvx, tvy);
                         synchronized (fruitsFlying) {
@@ -925,6 +927,7 @@ public class PlayScreen extends Screen {
                     }
                 }
                 mVelocityTracker.recycle();
+                // seems to be a bug here on android 4.4, causing IllegalStateException - not addressing, since it doesn't affect game play, and may be resolved in later versions
                 break;
         }
 

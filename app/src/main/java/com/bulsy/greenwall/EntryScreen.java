@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -32,11 +33,15 @@ public class EntryScreen extends Screen {
             InputStream inputStream = assetManager.open("entryscreen.png");
             screenbtm = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inScreenDensity = act.getDisplayMetrics().densityDpi;
+            options.inTargetDensity =  act.getDisplayMetrics().densityDpi;
+            options.inDensity = (int)act.EXPECTED_DENSITY;
             inputStream = assetManager.open("playbtn.png");
-            playbtm = BitmapFactory.decodeStream(inputStream);
+            playbtm = BitmapFactory.decodeStream(inputStream, null, options);
             inputStream.close();
             inputStream = assetManager.open("exitbtn.png");
-            exitbtm = BitmapFactory.decodeStream(inputStream);
+            exitbtm = BitmapFactory.decodeStream(inputStream, null, options);
             inputStream.close();
         }
         catch (Exception e) {
@@ -75,7 +80,7 @@ public class EntryScreen extends Screen {
 
         // version/copyright line
         p.setColor(Color.rgb(0,70,0));  // dark greenish
-        p.setTextSize(35);
+        p.setTextSize(act.TS_NORMAL);
         p.setTypeface(act.getGameFont());
         String msg = "v"+BuildConfig.VERSION_NAME;
         int xTextEnd = (int)(width*.99f);
@@ -95,6 +100,4 @@ public class EntryScreen extends Screen {
         // we don't care about followup events in this screen
         return false;
     }
-
-
 }
