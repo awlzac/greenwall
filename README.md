@@ -9,4 +9,7 @@ play is self explanatory -- just splatting various food items
 by throwing them at the wall.  typical cartoonish arcade game feel, play gets
 faster and more difficult gradually each round.
 
+playable executable available at
+https://play.google.com/store/apps/details?id=com.bulsy.greenwall
+
 have fun :)
