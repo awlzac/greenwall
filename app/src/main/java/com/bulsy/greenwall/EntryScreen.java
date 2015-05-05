@@ -7,7 +7,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -25,6 +24,7 @@ public class EntryScreen extends Screen {
     Rect playBtnBounds = null;
     Rect exitBtnBounds = null;
 
+
     public EntryScreen(MainActivity act) {
         this.act = act;
         try {
@@ -33,16 +33,9 @@ public class EntryScreen extends Screen {
             InputStream inputStream = assetManager.open("entryscreen.png");
             screenbtm = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inScreenDensity = act.getDisplayMetrics().densityDpi;
-            options.inTargetDensity =  act.getDisplayMetrics().densityDpi;
-            options.inDensity = (int)act.EXPECTED_DENSITY;
-            inputStream = assetManager.open("playbtn.png");
-            playbtm = BitmapFactory.decodeStream(inputStream, null, options);
-            inputStream.close();
-            inputStream = assetManager.open("exitbtn.png");
-            exitbtm = BitmapFactory.decodeStream(inputStream, null, options);
-            inputStream.close();
+
+            playbtm = act.getScaledBitmap("playbtn.png");
+            exitbtm = act.getScaledBitmap("exitbtn.png");
         }
         catch (Exception e) {
             // what to do with an exception here on android?

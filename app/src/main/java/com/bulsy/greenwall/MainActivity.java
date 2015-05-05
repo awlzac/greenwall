@@ -1,12 +1,11 @@
 package com.bulsy.greenwall;
 
-import android.animation.AnimatorSet;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
-import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Typeface;
-import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.support.v7.app.ActionBarActivity;
@@ -22,15 +21,19 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends ActionBarActivity {
     static final String LOG_ID = "Greenie";
     static final float EXPECTED_DENSITY = 315.0f;  // original target density of runtime device
+    static final float EXPECTED_WIDTH = 720.0f;  // original target width of runtime device
     int TS_NORMAL; // normal text size
     int TS_BIG; // large text size
-    float scalefactor;
+    float densityscalefactor;
+    float sizescalefactor;
     DisplayMetrics dm;
     Screen entryScreen;
     PlayScreen playScreen;
@@ -55,13 +58,18 @@ public class MainActivity extends ActionBarActivity {
             dm = new DisplayMetrics();
             getWindowManager().getDefaultDisplay().getMetrics(dm);
             gamefont = Typeface.createFromAsset(getAssets(), "comics.ttf");
-            scalefactor = (float)dm.densityDpi / EXPECTED_DENSITY;
-            if (scalefactor > 1.5f)
-                scalefactor = 1.5f;
-            else if (scalefactor < 0.5f)
-                scalefactor = 0.5f;
-            TS_NORMAL = (int)(38 * scalefactor);
-            TS_BIG = (int)(70 * scalefactor);
+            densityscalefactor = (float)dm.densityDpi / EXPECTED_DENSITY;
+            if (densityscalefactor > 1.5f)
+                densityscalefactor = 1.5f;
+            else if (densityscalefactor < 0.5f)
+                densityscalefactor = 0.5f;
+            sizescalefactor = (float)dm.widthPixels / EXPECTED_WIDTH;
+            if (sizescalefactor > 2f)
+                sizescalefactor = 2f;
+            else if (sizescalefactor < 0.4f)
+                sizescalefactor = 0.4f;
+            TS_NORMAL = (int)(38 * sizescalefactor);
+            TS_BIG = (int)(70 * sizescalefactor);
 
             // create screens
             entryScreen = new EntryScreen(this);
@@ -91,6 +99,29 @@ public class MainActivity extends ActionBarActivity {
             // panic, crash, fine -- but let me know what happened.
             Log.d(LOG_ID, "onCreate", e);
         }
+    }
+
+    BitmapFactory.Options sboptions = new BitmapFactory.Options();
+    /**
+     * load and scale bitmap according to the apps scale factors.
+     *
+     * @param fname
+     * @return
+     */
+    Bitmap getScaledBitmap(String fname) throws IOException
+    {
+        sboptions.inScreenDensity = dm.densityDpi;
+        sboptions.inTargetDensity =  dm.densityDpi;
+        sboptions.inDensity = (int)(dm.densityDpi / sizescalefactor); // hack: want to load bitmap scaled for width, abusing density scaling options to do it
+        InputStream inputStream = getAssets().open(fname);
+        Bitmap btm = BitmapFactory.decodeStream(inputStream, null, sboptions);
+        inputStream.close();
+        return btm;
+
+//        InputStream inputStream = getAssets().open(fname);
+//        Bitmap btm = BitmapFactory.decodeStream(inputStream);
+//        inputStream.close();
+//        return Bitmap.createScaledBitmap(btm, (int)(btm.getWidth()*sizescalefactor), (int)(btm.getHeight()*sizescalefactor), false);
     }
 
     public void playSound(Sound s, float vol, float rate) {

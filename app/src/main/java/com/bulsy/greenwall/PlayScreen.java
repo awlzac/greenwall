@@ -54,6 +54,7 @@ public class PlayScreen extends Screen {
     static final int INIT_SELECTABLE_SPEED = 150;  // initial speed of selectable fruit at bottom of screen
     static final long MIN_SPAWN_INTERVAL_NANOS = 100000000L;
     static final float INIT_SELECTABLE_Y_FACTOR = 0.9f;
+    float selectable_y_play = 0; // pixel distance that displayed selectable fruit wobbles; increases with level.
     int minRoundPassPct;  // pct splatted on wall that we require to advance level
     static final String LINE_SPLIT_MARKER = "#";
 
@@ -109,9 +110,12 @@ public class PlayScreen extends Screen {
     private final int LEVEL_ORANGE = 2;  // level where oranges are added
     private final int LEVEL_BANANA = 3;
     private final int LEVEL_MILK = 4;
-    private final int LEVEL_KETCHUP = 6;
+    private final int LEVEL_KETCHUP = 5;
+    private final int LEVEL_DANCING_FRUIT = 6;
     private final int LEVEL_ICECREAM = 8;
     private final int LEVEL_NUT = 10;
+    private final int LEVEL_MOREFRUIT1 = 14;
+    private final int LEVEL_MOREFRUIT2 = 20;
 
     private List<Combo> combos = new ArrayList<Combo>();  // possible combos
     private List<Fruit> comboFruits = new ArrayList<Fruit>();  // fruits potentially involved in combo
@@ -130,121 +134,56 @@ public class PlayScreen extends Screen {
             wallbtm = BitmapFactory.decodeStream(inputStream);
             inputStream.close();
 
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inScreenDensity = act.getDisplayMetrics().densityDpi;
-            opts.inTargetDensity =  act.getDisplayMetrics().densityDpi;
-            opts.inDensity = (int)act.EXPECTED_DENSITY;
-
             // pear
             pearbtm = new Bitmap[4];
-            inputStream = assetManager.open("pear1.png");
-            pearbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("pear2.png");
-            pearbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("pear3.png");
-            pearbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("pearsplat1.png");
-            pearbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            pearbtm[0] = act.getScaledBitmap("pear1.png");
+            pearbtm[1] = act.getScaledBitmap("pear2.png");
+            pearbtm[2] = act.getScaledBitmap("pear3.png");
+            pearbtm[3] = act.getScaledBitmap("pearsplat1.png");
 
             // banana
             banbtm = new Bitmap[5];
-            inputStream = assetManager.open("ban1.png");
-            banbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("ban2.png");
-            banbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("ban3.png");
-            banbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("ban4.png");
-            banbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("bansplat.png");
-            banbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            banbtm[0] = act.getScaledBitmap("ban1.png");
+            banbtm[1] = act.getScaledBitmap("ban2.png");
+            banbtm[2] = act.getScaledBitmap("ban3.png");
+            banbtm[3] = act.getScaledBitmap("ban4.png");
+            banbtm[4] = act.getScaledBitmap("bansplat.png");
 
             // orange
             orangebtm = new Bitmap[4];
-            inputStream = assetManager.open("orange1.png");
-            orangebtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("orange2.png");
-            orangebtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("orange3.png");
-            orangebtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("orangesplat.png");
-            orangebtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            orangebtm[0] = act.getScaledBitmap("orange1.png");
+            orangebtm[1] = act.getScaledBitmap("orange2.png");
+            orangebtm[2] = act.getScaledBitmap("orange3.png");
+            orangebtm[3] = act.getScaledBitmap("orangesplat.png");
 
             // nutella
             nutbtm = new Bitmap[5];
-            inputStream = assetManager.open("nut1.png");
-            nutbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("nut2.png");
-            nutbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("nut3.png");
-            nutbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("nut4.png");
-            nutbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("nutsplat.png");
-            nutbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            nutbtm[0] = act.getScaledBitmap("nut1.png");
+            nutbtm[1] = act.getScaledBitmap("nut2.png");
+            nutbtm[2] = act.getScaledBitmap("nut3.png");
+            nutbtm[3] = act.getScaledBitmap("nut4.png");
+            nutbtm[4] = act.getScaledBitmap("nutsplat.png");
 
             // ice cream
             icbtm = new Bitmap[5];
-            inputStream = assetManager.open("icecream1.png");
-            icbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("icecream2.png");
-            icbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("icecream3.png");
-            icbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("icecream4.png");
-            icbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("icecreamsplat.png");
-            icbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            icbtm[0] = act.getScaledBitmap("icecream1.png");
+            icbtm[1] = act.getScaledBitmap("icecream2.png");
+            icbtm[2] = act.getScaledBitmap("icecream3.png");
+            icbtm[3] = act.getScaledBitmap("icecream4.png");
+            icbtm[4] = act.getScaledBitmap("icecreamsplat.png");
 
             // milk
             milkbtm = new Bitmap[5];
-            inputStream = assetManager.open("milk1.png");
-            milkbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("milk2.png");
-            milkbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("milk3.png");
-            milkbtm[2] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("milk4.png");
-            milkbtm[3] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("milksplat1.png");
-            milkbtm[4] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            milkbtm[0] = act.getScaledBitmap("milk1.png");
+            milkbtm[1] = act.getScaledBitmap("milk2.png");
+            milkbtm[2] = act.getScaledBitmap("milk3.png");
+            milkbtm[3] = act.getScaledBitmap("milk4.png");
+            milkbtm[4] = act.getScaledBitmap("milksplat1.png");
 
             // ketchup
             ketbtm = new Bitmap[2];
-            inputStream = assetManager.open("ketch1.png");
-            ketbtm[0] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
-            inputStream = assetManager.open("ketchsplat.png");
-            ketbtm[1] = BitmapFactory.decodeStream(inputStream, null, opts);
-            inputStream.close();
+            ketbtm[0] = act.getScaledBitmap("ketch1.png");
+            ketbtm[1] = act.getScaledBitmap("ketchsplat.png");
 
             // initialize types of fruit (seeds), point values
             pearseed = new Seed(pearbtm, 10, Sound.WETSPLAT);
@@ -286,13 +225,15 @@ public class PlayScreen extends Screen {
             levelmsgMap.put(Integer.valueOf(LEVEL_KETCHUP), "Don't pop the keTChup packets!#Nobody likes that.");
             levelmsgMap.put(Integer.valueOf(LEVEL_ICECREAM), "time for ICE CREAM!#And more combinations!");
             levelmsgMap.put(Integer.valueOf(LEVEL_NUT), "Mmm...chocolate sauce!#Hit those COMBOS!");
-            levelmsgMap.put(Integer.valueOf(20), "getting a little crazy now, yes?");
+            levelmsgMap.put(Integer.valueOf(LEVEL_DANCING_FRUIT), "Sometimes...the fruit...#likes to DANCE!");
+            levelmsgMap.put(Integer.valueOf(LEVEL_MOREFRUIT1), "more fruit!#fling, fling, fling");
+            levelmsgMap.put(Integer.valueOf(LEVEL_MOREFRUIT2), "getting a little crazy now, yes?");
 
             p.setTypeface(act.getGameFont());
             round = 1;
 
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.d(act.LOG_ID, "wha?", e);
         }
     }
 
@@ -347,15 +288,15 @@ public class PlayScreen extends Screen {
      * init game for current round
      */
     private void initRound() {
-        selectable_speed = (int)(INIT_SELECTABLE_SPEED * act.scalefactor + (round * 10));
+        selectable_speed = (int)(INIT_SELECTABLE_SPEED * act.sizescalefactor + (round * 10));
 
         if (round < 2)
             maxShownSelectableFruit = 1;
         else if (round < 8)
             maxShownSelectableFruit = 2;
-        else if (round < 14)
+        else if (round < LEVEL_MOREFRUIT1)
             maxShownSelectableFruit = 3;
-        else if (round < 20)
+        else if (round < LEVEL_MOREFRUIT2)
             maxShownSelectableFruit = 4;
         else
             maxShownSelectableFruit = 5;
@@ -383,6 +324,11 @@ public class PlayScreen extends Screen {
             addFruitSeed(seedsQueued, icseed, round / 3);
         if (round >= LEVEL_NUT)
             addFruitSeed(seedsQueued, nutseed, round / 3);
+
+        if (round >= LEVEL_DANCING_FRUIT)
+          selectable_y_play = 8+round/2;
+        else
+          selectable_y_play = 0;
 
         int nket=0;
         if (round >= LEVEL_KETCHUP) {
@@ -678,9 +624,10 @@ public class PlayScreen extends Screen {
                     Fruit f = fit.next();
                     if (f != selectedFruit) {
                         f.x += f.vx * elapsedsecs;
-                        f.y += (inity - f.y) / 3;
-//                        if (f.y - inity < 0.9)
-//                            f.y += SELECTABLE_Y_PLAY;
+
+                        // wobble displayable fruit up and down, and return them to regular line when let go
+                        int targy = inity + (int)(Math.sin(f.x/15)* selectable_y_play);
+                        f.y += (targy - f.y) / SELECTABLE_FRUIT_BRAKING_FACTOR;
                     }
                     if (f.x < -f.seed.halfWidth || f.x > width + f.seed.halfWidth) {
                         // we floated off screen
@@ -692,6 +639,7 @@ public class PlayScreen extends Screen {
         }
     }
 
+    private static final double SELECTABLE_FRUIT_BRAKING_FACTOR = 3.0;
     /**
      * draw the screen.
      *
@@ -902,11 +850,11 @@ public class PlayScreen extends Screen {
                         // there is upward motion at release-- user threw fruit
 
                         // scale throw speed for display size/density
-                        tvx = tvx / act.scalefactor;
-                        tvy = tvy / act.scalefactor;
+                        tvx = tvx / act.densityscalefactor;
+                        tvy = tvy / act.densityscalefactor;
 
                         // help ease perspective problem when we release fruit away from the horizontal center of the screen
-                        tvx += (e.getX()-width/2)*3.5*act.scalefactor;
+                        tvx += (e.getX()-width/2)*3.5*act.densityscalefactor;
 
                         f.throwFruit(tvx, tvy);
                         synchronized (fruitsFlying) {

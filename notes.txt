@@ -1,28 +1,26 @@
 green wall notes
 ----------------
-
 blurb:
 a weirdly addictive arcade game, where you fling fruit against a big green wall.
 
 
-next up:
- - shave orange
- - "r" for round in hs
+possibly next up:
  - something protects from ketchup?
  - give extra lives if you do something?  special symbol shows on screen, if you hit it with a combo, you get another life?
  - have fruits comeout in more than one row after certain level
- - bug showing splatted fruit!?  where are we leaving a burst flag on??
  - change combo text to btm, with text and image, alpha bg
  - add spaz to combo?  spaz is 3x multiplier to combo and makes combo spaz harder?
   min number of combos per round -> per 10 levs, combo reqt.  after lev 20, reqt is in a scrqqn quadrant
   targets?  halo looking glow ring, 2x points for anything in target, target had 30% min
      or req part of screen to be hit?
   catch phone exit and go bac to title screen.  are you sure?
-  maybe make fruit randomly twitch?
+  maybe make fruit randomly twitch or wobble?
 
 
 log---
 ------
+may 5 retweaked sizing. added dancing fruit.
+
 mar 6
 level pass and death sounds
 redid how showing selectable fruit happens, now time and random driven, not framerate dependent
